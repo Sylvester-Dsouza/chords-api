@@ -1,0 +1,78 @@
+import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsOptional, IsBoolean, IsUrl, IsUUID } from 'class-validator';
+import { SongResponseDto } from './song.dto';
+
+export class CreateCollectionDto {
+  @ApiProperty({ example: 'Top Worship Songs 2023', description: 'Collection name' })
+  @IsString()
+  name: string = '';
+
+  @ApiProperty({ example: 'A collection of the most popular worship songs of 2023', description: 'Collection description', required: false })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({ example: 'https://example.com/collection.jpg', description: 'URL to collection image', required: false })
+  @IsUrl()
+  @IsOptional()
+  imageUrl?: string;
+
+  @ApiProperty({ example: true, description: 'Whether the collection is public', required: false, default: true })
+  @IsBoolean()
+  @IsOptional()
+  isPublic?: boolean;
+}
+
+export class UpdateCollectionDto {
+  @ApiProperty({ example: 'Top Worship Songs 2023', description: 'Collection name', required: false })
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @ApiProperty({ example: 'A collection of the most popular worship songs of 2023', description: 'Collection description', required: false })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({ example: 'https://example.com/collection.jpg', description: 'URL to collection image', required: false })
+  @IsUrl()
+  @IsOptional()
+  imageUrl?: string;
+
+  @ApiProperty({ example: true, description: 'Whether the collection is public', required: false })
+  @IsBoolean()
+  @IsOptional()
+  isPublic?: boolean;
+}
+
+export class AddSongToCollectionDto {
+  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000', description: 'Song ID' })
+  @IsUUID()
+  songId: string = '';
+}
+
+export class CollectionResponseDto {
+  @ApiProperty({ description: 'Collection ID' })
+  id: string = '';
+
+  @ApiProperty({ example: 'Top Worship Songs 2023', description: 'Collection name' })
+  name: string = '';
+
+  @ApiProperty({ example: 'A collection of the most popular worship songs of 2023', description: 'Collection description' })
+  description?: string | null = null;
+
+  @ApiProperty({ example: 'https://example.com/collection.jpg', description: 'URL to collection image' })
+  imageUrl?: string | null = null;
+
+  @ApiProperty({ example: true, description: 'Whether the collection is public' })
+  isPublic: boolean = true;
+
+  @ApiProperty({ description: 'Songs in the collection', type: [SongResponseDto] })
+  songs?: SongResponseDto[] = [];
+
+  @ApiProperty({ example: '2023-01-01T00:00:00Z', description: 'Creation date' })
+  createdAt: Date = new Date();
+
+  @ApiProperty({ example: '2023-01-01T00:00:00Z', description: 'Last update date' })
+  updatedAt: Date = new Date();
+}

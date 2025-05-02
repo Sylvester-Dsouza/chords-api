@@ -1,0 +1,723 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Admin users of the system
+model User {
+  id          String    @id @default(uuid())
+  name        String
+  email       String    @unique
+  // Firebase authentication fields
+  firebaseUid String?   @unique @map("firebaseUid")
+  // We don't store password when using Firebase auth
+  role        UserRole  @default(EDITOR)
+  isActive    Boolean   @default(true) @map("isActive")
+  lastLoginAt DateTime? @map("lastLoginAt")
+  createdAt   DateTime  @default(now()) @map("createdAt")
+  updatedAt   DateTime  @updatedAt @map("updatedAt")
+
+  @@map("User")
+}
+
+// Customers who use the app/website
+model Customer {
+  id    String @id @default(uuid())
+  name  String
+  email String @unique
+
+  // Firebase authentication fields
+  firebaseUid String? @unique @map("firebaseUid")
+
+  // We don't store password when using Firebase auth
+  profilePicture   String?          @map("profilePicture")
+  phoneNumber      String?          @map("phoneNumber")
+  subscriptionType SubscriptionType @default(FREE)
+  showAds          Boolean          @default(true) @map("showAds") // Whether to show ads to this customer
+  isActive         Boolean          @default(true) @map("isActive")
+  isEmailVerified  Boolean          @default(false) @map("isEmailVerified")
+  lastLoginAt      DateTime?        @map("lastLoginAt")
+
+  // Auth providers
+  authProvider AuthProvider @default(EMAIL) @map("authProvider")
+
+  // Remember me preference
+  rememberMe Boolean @default(false) @map("rememberMe")
+
+  // Terms and conditions acceptance
+  termsAccepted   Boolean   @default(false) @map("termsAccepted")
+  termsAcceptedAt DateTime? @map("termsAcceptedAt")
+
+  // Standard timestamps
+  createdAt DateTime @default(now()) @map("createdAt")
+  updatedAt DateTime @updatedAt @map("updatedAt")
+
+  // Relations
+  playlists          Playlist[]
+  refreshTokens      RefreshToken[]
+  likedSongs         LikedSong[]
+  subscriptions      Subscription[]
+  transactions       Transaction[]
+  songRequests       SongRequest[]
+  songRequestUpvotes SongRequestUpvote[]
+  deviceTokens       DeviceToken[]
+  notifications      Notification[]
+  notificationHistory NotificationHistory[]
+  comments           Comment[]
+  commentLikes       CommentLike[]
+
+  // Analytics relations
+  sessions           UserSession[]
+  pageViews          PageView[]
+  contentViews       ContentView[]
+
+  @@map("Customer")
+}
+
+// Artist model
+model Artist {
+  id          String   @id @default(uuid())
+  name        String   @unique // Artist name
+  bio         String?  @db.Text // Biography
+  imageUrl    String? // Profile image URL
+  website     String? // Website URL
+  socialLinks Json? // Store social media links (JSON array)
+  isFeatured  Boolean  @default(false) @map("isFeatured") // Whether the artist is featured
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+
+  // Analytics fields
+  viewCount     Int       @default(0)
+  uniqueViewers Int       @default(0)
+  lastViewed    DateTime?
+
+  // Relations
+  songs Song[]
+  artistTags ArtistTag[]
+
+  @@map("Artist")
+}
+
+// Tag model for categorizing content
+model Tag {
+  id             String   @id @default(uuid())
+  name           String   @unique
+  description    String?  @db.Text
+  color          String?  // Hex color code for UI display
+  forSongs       Boolean  @default(true) @map("forSongs")
+  forArtists     Boolean  @default(true) @map("forArtists")
+  forCollections Boolean  @default(true) @map("forCollections")
+  createdAt      DateTime @default(now()) @map("createdAt")
+  updatedAt      DateTime @updatedAt @map("updatedAt")
+
+  // Relations
+  songs       SongTag[]
+  artists     ArtistTag[]
+  collections CollectionTag[]
+
+  @@map("Tag")
+}
+
+// Language model for songs
+model Language {
+  id          String   @id @default(uuid())
+  name        String   @unique // Language name
+  isActive    Boolean  @default(true) @map("isActive")
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+
+  // Relations
+  songs       Song[]
+
+  @@map("Language")
+}
+
+// Subscription plans available in the system
+model SubscriptionPlan {
+  id           String        @id @default(uuid())
+  name         String        @unique
+  description  String?       @db.Text
+  price        Float
+  billingCycle BillingCycle  @default(MONTHLY)
+  features     String[]      // Array of features included in this plan
+  isActive     Boolean       @default(true) @map("isActive")
+  createdAt    DateTime      @default(now()) @map("createdAt")
+  updatedAt    DateTime      @updatedAt @map("updatedAt")
+
+  // Relations
+  subscriptions Subscription[]
+  transactions  Transaction[]
+
+  @@map("SubscriptionPlan")
+}
+
+// Customer subscriptions
+model Subscription {
+  id                String             @id @default(uuid())
+  customerId        String             @map("customerId")
+  planId            String             @map("planId")
+  startDate         DateTime           @map("startDate")
+  endDate           DateTime?          @map("endDate")      // Null for ongoing subscriptions
+  renewalDate       DateTime           @map("renewalDate")
+  status            SubscriptionStatus @default(ACTIVE)
+  paymentMethod     String?            @map("paymentMethod") // Description of payment method
+  paymentMethodId   String?            @map("paymentMethodId") // ID from payment processor
+  canceledAt        DateTime?          @map("canceledAt")
+  cancelReason      String?            @map("cancelReason")
+  isAutoRenew       Boolean            @default(true) @map("isAutoRenew")
+  createdAt         DateTime           @default(now()) @map("createdAt")
+  updatedAt         DateTime           @updatedAt @map("updatedAt")
+
+  // Relations
+  customer    Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  plan        SubscriptionPlan  @relation(fields: [planId], references: [id])
+  transactions Transaction[]
+
+  @@map("Subscription")
+}
+
+// Payment transactions
+model Transaction {
+  id              String            @id @default(uuid())
+  subscriptionId  String            @map("subscriptionId")
+  customerId      String            @map("customerId")
+  planId          String            @map("planId")
+  amount          Float
+  currency        String            @default("USD")
+  status          TransactionStatus @default(PENDING)
+  paymentMethod   String?           @map("paymentMethod")
+  paymentIntentId String?           @map("paymentIntentId") // ID from payment processor
+  failureReason   String?           @map("failureReason")
+  transactionDate DateTime          @default(now()) @map("transactionDate")
+  createdAt       DateTime          @default(now()) @map("createdAt")
+  updatedAt       DateTime          @updatedAt @map("updatedAt")
+
+  // Relations
+  subscription Subscription      @relation(fields: [subscriptionId], references: [id])
+  customer     Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  plan         SubscriptionPlan  @relation(fields: [planId], references: [id])
+
+  @@map("Transaction")
+}
+
+// Songs with chords in the system
+model Song {
+  id            String   @id @default(uuid())
+  title         String
+  artistId      String   @map("artistId")
+  languageId    String?  @map("languageId") // Optional to maintain backward compatibility
+  key           String?
+  tempo         Int?
+  timeSignature String?  @map("timeSignature")
+  difficulty    String?
+  capo          Int      @default(0) // Capo position
+  chordSheet    String   @map("chordSheet") @db.Text
+  imageUrl      String?  // Cover image URL from Supabase Storage
+  // transpose field removed as it will be handled in the Flutter app
+  tags          String[] // Legacy field, will be replaced by the Tag relation
+  createdAt     DateTime @default(now()) @map("createdAt")
+  updatedAt     DateTime @updatedAt @map("updatedAt")
+
+  // Analytics fields
+  viewCount     Int       @default(0)
+  uniqueViewers Int       @default(0)
+  lastViewed    DateTime?
+
+  // Relations
+  artist      Artist       @relation(fields: [artistId], references: [id])
+  language    Language?    @relation(fields: [languageId], references: [id])
+  likedBy     LikedSong[]
+  playlists   Playlist[] // Direct many-to-many relation
+  collections Collection[]
+  songTags    SongTag[]
+  comments    Comment[]
+
+  @@map("Song")
+}
+
+// Junction table for Song-Tag many-to-many relationship
+model SongTag {
+  songId    String   @map("songId")
+  tagId     String   @map("tagId")
+  createdAt DateTime @default(now()) @map("createdAt")
+
+  // Relations
+  song Song @relation(fields: [songId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([songId, tagId])
+  @@map("SongTag")
+}
+
+// Junction table for Artist-Tag many-to-many relationship
+model ArtistTag {
+  artistId  String   @map("artistId")
+  tagId     String   @map("tagId")
+  createdAt DateTime @default(now()) @map("createdAt")
+
+  // Relations
+  artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([artistId, tagId])
+  @@map("ArtistTag")
+}
+
+// Junction table for Collection-Tag many-to-many relationship
+model CollectionTag {
+  collectionId String   @map("collectionId")
+  tagId        String   @map("tagId")
+  createdAt    DateTime @default(now()) @map("createdAt")
+
+  // Relations
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  tag        Tag        @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, tagId])
+  @@map("CollectionTag")
+}
+
+// Customer liked songs
+model LikedSong {
+  id         String   @id @default(uuid())
+  customerId String   @map("customerId")
+  songId     String   @map("songId")
+  createdAt  DateTime @default(now()) @map("createdAt")
+
+  // Relations
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  song     Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, songId])
+  @@map("LikedSong")
+}
+
+// Banner model for home screen banners
+model Banner {
+  id          String   @id @default(uuid())
+  title       String
+  imageUrl    String
+  targetType  String?  // Type of target (song, artist, collection, external)
+  targetId    String?  // ID of the target resource
+  externalUrl String?  // URL for external links
+  position    Int      @default(0) // Order position
+  isActive    Boolean  @default(true) @map("isActive")
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+
+  @@map("Banner")
+}
+
+// Collections (curated sets of songs)
+model Collection {
+  id          String   @id @default(uuid())
+  name        String
+  description String?  @db.Text
+  imageUrl    String?
+  isPublic    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+
+  // Analytics fields
+  viewCount     Int       @default(0)
+  uniqueViewers Int       @default(0)
+  lastViewed    DateTime?
+
+  // Relations
+  songs Song[]
+  collectionTags CollectionTag[]
+
+  @@map("Collection")
+}
+
+// Customer playlists
+model Playlist {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  customerId  String   @map("customerId")
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+
+  // Relations
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  songs    Song[] // Direct many-to-many relation
+
+  @@map("Playlist")
+}
+
+// Song Request model
+model SongRequest {
+  id          String   @id @default(uuid())
+  songName    String
+  artistName  String?
+  youtubeLink String?
+  spotifyLink String?
+  notes       String?  @db.Text
+  status      String   @default("PENDING") // PENDING, APPROVED, IN_PROGRESS, COMPLETED, REJECTED
+  upvotes     Int      @default(0)
+  customerId  String   @map("customerId")
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+
+  // Relations
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  upvotedBy   SongRequestUpvote[]
+
+  @@map("SongRequest")
+}
+
+// Song Request Upvote model
+model SongRequestUpvote {
+  id            String      @id @default(uuid())
+  songRequestId String      @map("songRequestId")
+  customerId    String      @map("customerId")
+  createdAt     DateTime    @default(now()) @map("createdAt")
+
+  // Relations
+  songRequest   SongRequest @relation(fields: [songRequestId], references: [id], onDelete: Cascade)
+  customer      Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([songRequestId, customerId])
+  @@map("SongRequestUpvote")
+}
+
+// Authentication tokens for refresh functionality
+model RefreshToken {
+  id         String    @id @default(uuid())
+  token      String    @unique
+  customerId String    @map("customerId")
+  deviceId   String?   @map("deviceId")      // Device identifier
+  deviceType String?   @map("deviceType")    // Device type (e.g., 'android', 'ios', 'web')
+  deviceName String?   @map("deviceName")    // Device name
+  ipAddress  String?   @map("ipAddress")     // IP address used for token creation
+  userAgent  String?   @map("userAgent")     // User agent used for token creation
+  expiresAt  DateTime  @map("expiresAt")
+  createdAt  DateTime  @default(now()) @map("createdAt")
+  updatedAt  DateTime  @updatedAt @map("updatedAt")
+  revokedAt  DateTime? @map("revokedAt")
+  usedAt     DateTime? @map("usedAt")        // Last time the token was used
+
+  // Relations
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@map("RefreshToken")
+}
+
+// Device tokens for push notifications
+model DeviceToken {
+  id         String   @id @default(uuid())
+  token      String   @unique
+  customerId String   @map("customerId")
+  deviceType String   @map("deviceType") // 'android', 'ios', 'web'
+  deviceName String?  @map("deviceName")
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("createdAt")
+  updatedAt  DateTime @updatedAt @map("updatedAt")
+  lastUsedAt DateTime @default(now()) @map("lastUsedAt")
+
+  // Relations
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("DeviceToken")
+}
+
+// Notifications model
+model Notification {
+  id          String             @id @default(uuid())
+  title       String
+  body        String
+  data        Json?              // Additional data for the notification
+  type        NotificationType   @default(GENERAL)
+  audience    NotificationAudience @default(ALL)
+  status      NotificationStatus @default(SENT)
+  customerId  String?            @map("customerId") // Null for broadcast notifications
+  sentAt      DateTime           @default(now()) @map("sentAt")
+  scheduledAt DateTime?          @map("scheduledAt")
+  createdAt   DateTime           @default(now()) @map("createdAt")
+  updatedAt   DateTime           @updatedAt @map("updatedAt")
+
+  // Relations
+  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  history     NotificationHistory[]
+
+  @@map("Notification")
+}
+
+// Notification History model to track user interactions with notifications
+model NotificationHistory {
+  id             String                 @id @default(uuid())
+  notificationId String                 @map("notificationId")
+  customerId     String                 @map("customerId")
+  status         NotificationUserStatus @default(DELIVERED)
+  deliveredAt    DateTime?              @map("deliveredAt")
+  readAt         DateTime?              @map("readAt")
+  clickedAt      DateTime?              @map("clickedAt")
+  createdAt      DateTime               @default(now()) @map("createdAt")
+  updatedAt      DateTime               @updatedAt @map("updatedAt")
+
+  // Relations
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  customer       Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, customerId])
+  @@map("NotificationHistory")
+}
+
+// Enums
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  CONTRIBUTOR
+  EDITOR
+}
+
+enum SubscriptionType {
+  FREE
+  PREMIUM
+  PRO
+}
+
+enum AuthProvider {
+  EMAIL
+  GOOGLE
+  FACEBOOK
+  APPLE
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+  LIFETIME
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  UNPAID
+  TRIAL
+  EXPIRED
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  DISPUTED
+}
+
+enum NotificationType {
+  GENERAL
+  SONG_ADDED
+  SONG_REQUEST_COMPLETED
+  NEW_FEATURE
+  SUBSCRIPTION
+  PROMOTION
+}
+
+enum NotificationAudience {
+  ALL
+  PREMIUM_USERS
+  FREE_USERS
+  SPECIFIC_USER
+}
+
+enum NotificationStatus {
+  SCHEDULED
+  SENT
+  FAILED
+  CANCELED
+}
+
+enum NotificationUserStatus {
+  DELIVERED
+  READ
+  CLICKED
+  DISMISSED
+}
+
+enum CommentModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  FLAGGED
+}
+
+enum AuditLogType {
+  AUTH
+  USER
+  CONTENT
+  ADMIN
+  SECURITY
+  SYSTEM
+}
+
+enum AuditLogSeverity {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+// Audit logs for security and tracking
+model AuditLog {
+  id          String           @id @default(uuid())
+  type        AuditLogType
+  severity    AuditLogSeverity
+  action      String
+  userId      String?          // Can be either a customer or admin user ID
+  targetId    String?          // ID of the target resource (e.g., song ID)
+  targetType  String?          // Type of the target resource (e.g., 'song')
+  ip          String?          // IP address
+  userAgent   String?          // User agent
+  details     String?          // JSON string with additional details
+  createdAt   DateTime         @default(now())
+
+  @@index([type])
+  @@index([severity])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([targetId, targetType])
+  @@map("AuditLog")
+}
+
+// Comments on songs
+model Comment {
+  id                String    @id @default(uuid())
+  songId            String    @map("songId")
+  customerId        String    @map("customerId")
+  text              String    @db.Text
+  parentId          String?   @map("parentId") // For replies, null for top-level comments
+  createdAt         DateTime  @default(now()) @map("createdAt")
+  updatedAt         DateTime  @updatedAt @map("updatedAt")
+  isDeleted         Boolean   @default(false) @map("isDeleted")
+  deletedAt         DateTime? @map("deletedAt")
+
+  // Relations
+  song              Song      @relation(fields: [songId], references: [id], onDelete: Cascade)
+  customer          Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  parent            Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies           Comment[] @relation("CommentReplies")
+  likes             CommentLike[]
+
+  @@index([songId])
+  @@index([customerId])
+  @@index([parentId])
+  @@map("Comment")
+}
+
+// Comment likes
+model CommentLike {
+  id                String    @id @default(uuid())
+  commentId         String    @map("commentId")
+  customerId        String    @map("customerId")
+  createdAt         DateTime  @default(now()) @map("createdAt")
+
+  // Relations
+  comment           Comment   @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  customer          Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, customerId])
+  @@index([commentId])
+  @@index([customerId])
+  @@map("CommentLike")
+}
+
+// Analytics models
+
+// User sessions for analytics
+model UserSession {
+  id          String    @id @default(uuid())
+  customerId  String
+  startTime   DateTime  @default(now())
+  endTime     DateTime?
+  deviceInfo  String?
+  ipAddress   String?
+  userAgent   String?
+  appVersion  String?
+  platform    String?   // iOS, Android, Web
+  isActive    Boolean   @default(true)
+
+  // Relations
+  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  pageViews   PageView[]
+  contentViews ContentView[]
+
+  @@index([customerId])
+  @@index([startTime])
+  @@index([platform])
+  @@map("UserSession")
+}
+
+// Page views for analytics
+model PageView {
+  id          String    @id @default(uuid())
+  sessionId   String
+  customerId  String?
+  page        String    // e.g., "song-detail", "artist-list"
+  referrer    String?   // previous page or external source
+  parameters  Json?     // any parameters like songId, artistId
+  timestamp   DateTime  @default(now())
+  duration    Int?      // time spent on page in seconds
+
+  // Relations
+  session     UserSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  customer    Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId])
+  @@index([customerId])
+  @@index([page])
+  @@index([timestamp])
+  @@map("PageView")
+}
+
+// Content views for analytics
+model ContentView {
+  id          String    @id @default(uuid())
+  contentType String    // "song", "artist", "collection"
+  contentId   String
+  customerId  String?
+  sessionId   String?
+  timestamp   DateTime  @default(now())
+  duration    Int?      // time spent viewing in seconds
+  source      String?   // how they found the content (search, browse, recommendation)
+
+  // Relations
+  customer    Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  session     UserSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([contentType, contentId])
+  @@index([customerId])
+  @@index([sessionId])
+  @@index([timestamp])
+  @@map("ContentView")
+}
+
+// Daily aggregated metrics
+model DailyMetrics {
+  id                  String    @id @default(uuid())
+  date                DateTime  @unique @db.Date
+  activeUsers         Int       @default(0)
+  newUsers            Int       @default(0)
+  totalPageViews      Int       @default(0)
+  totalSongViews      Int       @default(0)
+  totalArtistViews    Int       @default(0)
+  totalCollectionViews Int      @default(0)
+  totalLikes          Int       @default(0)
+  totalComments       Int       @default(0)
+
+  @@index([date])
+  @@map("DailyMetrics")
+}
