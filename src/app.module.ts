@@ -35,7 +35,7 @@ import { UploadModule } from './modules/upload.module';
 import { SongRequestModule } from './modules/song-request.module';
 import { NotificationModule } from './modules/notification.module';
 import { CommentModule } from './modules/comment.module';
-
+import { HealthController } from './health/health.controller';
 
 import { PlaylistService } from './services/playlist.service';
 import { LikedSongService } from './services/liked-song.service';
@@ -72,7 +72,8 @@ import { CommentService } from './services/comment.service';
   controllers: [
     AppController,
     UserController,
-    CustomerController
+    CustomerController,
+    HealthController
   ],
   providers: [
     AppService,
