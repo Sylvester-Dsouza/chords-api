@@ -15,7 +15,10 @@ module.exports = {
     ],
   },
   resolve: {
-    extensions: ['.ts', '.js'],
+    extensions: ['.ts', '.js', '.d.ts'],
+    alias: {
+      '@types': path.resolve(__dirname, 'src/types'),
+    },
   },
   output: {
     filename: 'main.js',

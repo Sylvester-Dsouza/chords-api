@@ -1,8 +1,0 @@
-{
-  "dependencies": {
-    "ioredis": "^5.3.2",
-    "sanitize-html": "^2.11.0",
-    "validator": "^13.11.0",
-    "uuid": "^9.0.1"
-  }
-}
