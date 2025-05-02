@@ -7,7 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
-    "build:render": "npx @nestjs/cli build",
+    "build:render": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start -- --port 3001",
     "dev": "nest start --watch -- --port 3001",
