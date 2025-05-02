@@ -25,6 +25,7 @@ async function bootstrap() {
       'http://localhost:3001',
       'http://127.0.0.1:3000',
       'http://127.0.0.1:3001',
+      'https://chords-admin.vercel.app',
       'https://admin.yourapp.com',  // Add your production admin URL here
       'https://app.yourapp.com'     // Add your production app URL here
     ],
