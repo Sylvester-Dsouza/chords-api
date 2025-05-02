@@ -5,8 +5,8 @@ services:
     env: node
     region: singapore
     plan: free
-    buildCommand: npm install && npm run prisma:generate && npm run build
-    startCommand: npm run start:prod
+    buildCommand: ./build.sh
+    startCommand: ./start.sh
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
