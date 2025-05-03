@@ -1,11 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { CollectionService } from '../../services/collection.service';
 import { CreateCollectionDto, UpdateCollectionDto, CollectionResponseDto, AddSongToCollectionDto } from '../../dto/collection.dto';
 import { UserAuthGuard } from '../../guards/user-auth.guard';
 import { RolesGuard } from '../../guards/roles.guard';
 import { Roles } from '../../decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
+import { Response } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('collections')
 @Controller('collections')
@@ -101,5 +103,105 @@ export class CollectionController {
   @ApiResponse({ status: 404, description: 'Collection not found.' })
   async remove(@Param('id') id: string): Promise<CollectionResponseDto> {
     return this.collectionService.remove(id);
+  }
+
+  @Get('export/csv')
+  @UseGuards(UserAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export all collections to CSV' })
+  @ApiResponse({ status: 200, description: 'Return CSV file with all collections.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  async exportToCsv(@Res() res: Response): Promise<void> {
+    const csv = await this.collectionService.exportToCsv();
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=collections.csv');
+    res.send(csv);
+  }
+
+  @Get('export/songs/csv')
+  @UseGuards(UserAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export all collection-song relationships to CSV' })
+  @ApiResponse({ status: 200, description: 'Return CSV file with all collection-song relationships.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  async exportSongRelationshipsToCsv(@Res() res: Response): Promise<void> {
+    const csv = await this.collectionService.exportSongRelationshipsToCsv();
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=collection-songs.csv');
+    res.send(csv);
+  }
+
+  @Post('import/csv')
+  @UseGuards(UserAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Import collections from CSV' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiResponse({ status: 201, description: 'Collections imported successfully.' })
+  @ApiResponse({ status: 400, description: 'Bad Request.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  async importFromCsv(@UploadedFile() file: Express.Multer.File): Promise<{ imported: number; errors: string[] }> {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    if (file.mimetype !== 'text/csv' && file.mimetype !== 'application/vnd.ms-excel') {
+      throw new BadRequestException('File must be a CSV');
+    }
+
+    return this.collectionService.importFromCsv(file.buffer);
+  }
+
+  @Post('import/songs/csv')
+  @UseGuards(UserAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Import collection-song relationships from CSV' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiResponse({ status: 201, description: 'Collection-song relationships imported successfully.' })
+  @ApiResponse({ status: 400, description: 'Bad Request.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  async importSongRelationshipsFromCsv(@UploadedFile() file: Express.Multer.File): Promise<{ imported: number; errors: string[] }> {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    if (file.mimetype !== 'text/csv' && file.mimetype !== 'application/vnd.ms-excel') {
+      throw new BadRequestException('File must be a CSV');
+    }
+
+    return this.collectionService.importSongRelationshipsFromCsv(file.buffer);
   }
 }

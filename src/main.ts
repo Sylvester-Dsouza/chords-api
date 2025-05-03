@@ -23,8 +23,13 @@ async function bootstrap() {
     origin: [
       'http://localhost:3000',
       'http://localhost:3001',
+      'http://localhost:3002',
       'http://127.0.0.1:3000',
       'http://127.0.0.1:3001',
+      'http://127.0.0.1:3002',
+      'http://192.168.1.5:3000',
+      'http://192.168.1.5:3001',
+      'http://192.168.1.5:3002',
       'https://chords-admin.vercel.app',
       'https://admin.yourapp.com',  // Add your production admin URL here
       'https://app.yourapp.com'     // Add your production app URL here
@@ -83,7 +88,7 @@ async function bootstrap() {
   // Configure middleware
   configureMiddleware(app);
 
-  const port = process.env.PORT ?? 3001;
+  const port = process.env.PORT ?? 3002;
   await app.listen(port);
   // Using console.info is allowed by our ESLint rules
   if (process.env.MINIMAL_LOGS !== 'true') {

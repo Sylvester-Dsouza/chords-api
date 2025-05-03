@@ -10,16 +10,28 @@ echo -e "${YELLOW}Firebase Service Account Setup Script${NC}"
 echo "This script will help you set up Firebase authentication for your Chords API."
 echo
 
-# Check if firebase-service-account.json exists
-if [ -f "firebase-service-account.json" ]; then
-    echo -e "${GREEN}Found firebase-service-account.json file.${NC}"
-    
+# Create secrets directory if it doesn't exist
+mkdir -p config/secrets
+
+# Check if firebase-service-account.json exists in the secrets directory
+if [ -f "config/secrets/firebase-service-account.json" ]; then
+    echo -e "${GREEN}Found firebase-service-account.json file in secrets directory.${NC}"
+
     # Extract project_id from the file
-    PROJECT_ID=$(grep -o '"project_id": "[^"]*' firebase-service-account.json | cut -d'"' -f4)
-    
+    PROJECT_ID=$(grep -o '"project_id": "[^"]*' config/secrets/firebase-service-account.json | cut -d'"' -f4)
+elif [ -f "firebase-service-account.json" ]; then
+    echo -e "${YELLOW}Found firebase-service-account.json file in root directory.${NC}"
+    echo -e "${YELLOW}Moving it to the config/secrets directory...${NC}"
+
+    # Move the file to the secrets directory
+    mv firebase-service-account.json config/secrets/
+
+    # Extract project_id from the file
+    PROJECT_ID=$(grep -o '"project_id": "[^"]*' config/secrets/firebase-service-account.json | cut -d'"' -f4)
+
     if [ -n "$PROJECT_ID" ]; then
         echo -e "Project ID: ${GREEN}$PROJECT_ID${NC}"
-        
+
         # Check if it matches the expected project ID
         if [ "$PROJECT_ID" == "chords-app-ecd47" ]; then
             echo -e "${GREEN}✓ Project ID matches the one used in your Flutter app.${NC}"
@@ -39,7 +51,7 @@ else
     echo "3. Go to Project Settings (gear icon)"
     echo "4. Go to the 'Service accounts' tab"
     echo "5. Click 'Generate new private key'"
-    echo "6. Save the JSON file as 'firebase-service-account.json' in the root directory of your API project"
+    echo "6. Save the JSON file as 'firebase-service-account.json' in the config/secrets directory of your API project"
 fi
 
 echo

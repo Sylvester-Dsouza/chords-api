@@ -1,16 +1,21 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { CustomerService } from '../../services/customer.service';
 import { PlaylistService } from '../../services/playlist.service';
 import { LikedSongService } from '../../services/liked-song.service';
 import { SongRequestService } from '../../services/song-request.service';
 import { NotificationHistoryService } from '../../services/notification-history.service';
 import { CreateCustomerDto, UpdateCustomerDto, CustomerResponseDto } from '../../dto/customer.dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { UserAuthGuard } from '../../guards/user-auth.guard';
+import { RolesGuard } from '../../guards/roles.guard';
+import { Roles } from '../../decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
 import { PlaylistResponseDto } from '../../dto/playlist.dto';
 import { SongResponseDto } from '../../dto/song.dto';
 import { SongRequestResponseDto } from '../../dto/song-request.dto';
 import { NotificationHistoryResponseDto } from '../../dto/notification.dto';
+import { Response } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('customers')
 @Controller('customers')
@@ -116,5 +121,55 @@ export class CustomerController {
   @Get(':id/notification-history')
   async getCustomerNotificationHistory(@Param('id') customerId: string): Promise<NotificationHistoryResponseDto[]> {
     return this.notificationHistoryService.findAllByCustomer(customerId);
+  }
+
+  @Get('export/csv')
+  @UseGuards(UserAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export all customers to CSV' })
+  @ApiResponse({ status: 200, description: 'Return CSV file with all customers.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  async exportToCsv(@Res() res: Response): Promise<void> {
+    const csv = await this.customerService.exportToCsv();
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=customers.csv');
+    res.send(csv);
+  }
+
+  @Post('import/csv')
+  @UseGuards(UserAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Import customers from CSV' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiResponse({ status: 201, description: 'Customers imported successfully.' })
+  @ApiResponse({ status: 400, description: 'Bad Request.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  async importFromCsv(@UploadedFile() file: Express.Multer.File): Promise<{ imported: number; errors: string[] }> {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    if (file.mimetype !== 'text/csv' && file.mimetype !== 'application/vnd.ms-excel') {
+      throw new BadRequestException('File must be a CSV');
+    }
+
+    return this.customerService.importFromCsv(file.buffer);
   }
 }

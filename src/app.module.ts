@@ -16,6 +16,7 @@ import { ArtistModule } from './modules/artist.module';
 import { SongModule } from './modules/song.module';
 import { ChordDiagramModule } from './modules/chord-diagram.module';
 import { AnalyticsModule } from './modules/analytics.module';
+import { SystemMonitoringModule } from './modules/system-monitoring.module';
 import { RateLimitMiddleware } from './middlewares/rate-limit.middleware';
 import { RequestValidationMiddleware } from './middlewares/request-validation.middleware';
 import { TokenService } from './services/token.service';
@@ -29,13 +30,13 @@ import { SubscriptionPlanModule } from './modules/subscription-plan.module';
 import { SubscriptionModule } from './modules/subscription.module';
 import { TransactionModule } from './modules/transaction.module';
 import { AdsModule } from './modules/ads.module';
-import { AuthModule } from './auth/auth.module';
+import { AuthModule } from './modules/auth.module';
 import { SupabaseModule } from './modules/supabase.module';
 import { UploadModule } from './modules/upload.module';
 import { SongRequestModule } from './modules/song-request.module';
 import { NotificationModule } from './modules/notification.module';
 import { CommentModule } from './modules/comment.module';
-import { HealthController } from './health/health.controller';
+import { HealthController } from './controllers/health/health.controller';
 
 import { PlaylistService } from './services/playlist.service';
 import { LikedSongService } from './services/liked-song.service';
@@ -55,6 +56,7 @@ import { CommentService } from './services/comment.service';
     PlaylistModule,
     ChordDiagramModule,
     AnalyticsModule,
+    SystemMonitoringModule,
     LikedSongModule,
     TagModule,
     LanguageModule,

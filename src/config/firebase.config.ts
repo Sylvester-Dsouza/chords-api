@@ -12,8 +12,39 @@ export function initializeFirebase(): void {
       // For production, use environment variables or secret management
       const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
       const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+      const projectId = process.env.FIREBASE_PROJECT_ID;
+      const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+      const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 
-      if (serviceAccount) {
+      if (projectId && privateKey && clientEmail) {
+        // Use individual environment variables
+        const type = process.env.FIREBASE_TYPE || 'service_account';
+        const privateKeyId = process.env.FIREBASE_PRIVATE_KEY_ID;
+        const clientId = process.env.FIREBASE_CLIENT_ID;
+        const authUri = process.env.FIREBASE_AUTH_URI;
+        const tokenUri = process.env.FIREBASE_TOKEN_URI;
+        const authProviderX509CertUrl = process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL;
+        const clientX509CertUrl = process.env.FIREBASE_CLIENT_X509_CERT_URL;
+        const universeDomain = process.env.FIREBASE_UNIVERSE_DOMAIN || 'googleapis.com';
+
+        admin.initializeApp({
+          credential: admin.credential.cert({
+            type,
+            projectId,
+            privateKeyId,
+            privateKey: privateKey.replace(/\\n/g, '\n'),
+            clientEmail,
+            clientId,
+            authUri,
+            tokenUri,
+            authProviderX509CertUrl,
+            clientX509CertUrl,
+            universeDomain,
+          } as admin.ServiceAccount),
+        });
+        isFirebaseAvailable = true;
+        console.info('Firebase Admin SDK initialized with environment variables');
+      } else if (serviceAccount) {
         // Parse the JSON string from environment variable
         admin.initializeApp({
           credential: admin.credential.cert(JSON.parse(serviceAccount)),
@@ -34,15 +65,25 @@ export function initializeFirebase(): void {
       } else {
         // Fallback to a local service account file for development
         try {
-          const localServiceAccount = require('../../firebase-service-account.json');
+          // Try to load from the secrets directory first
+          const localServiceAccount = require('../config/secrets/firebase-service-account.json');
           admin.initializeApp({
             credential: admin.credential.cert(localServiceAccount),
           });
           isFirebaseAvailable = true;
         } catch (e) {
-          if (process.env.MINIMAL_LOGS !== 'true') {
-            console.warn('Firebase service account not found. Firebase authentication will be disabled.');
-            console.warn('To enable Firebase authentication, set FIREBASE_SERVICE_ACCOUNT environment variable or provide a firebase-service-account.json file.');
+          // If not found in secrets directory, try the root directory (for backward compatibility)
+          try {
+            const rootServiceAccount = require('../../firebase-service-account.json');
+            admin.initializeApp({
+              credential: admin.credential.cert(rootServiceAccount),
+            });
+            isFirebaseAvailable = true;
+          } catch (rootError) {
+            if (process.env.MINIMAL_LOGS !== 'true') {
+              console.warn('Firebase service account not found. Firebase authentication will be disabled.');
+              console.warn('To enable Firebase authentication, set FIREBASE_SERVICE_ACCOUNT environment variable or provide a firebase-service-account.json file.');
+            }
           }
           // Initialize Firebase with a dummy app for development
           if (process.env.NODE_ENV !== 'production') {

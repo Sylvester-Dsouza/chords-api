@@ -5,9 +5,10 @@ import { SongService } from '../services/song.service';
 import { PrismaService } from '../services/prisma.service';
 import { CacheService } from '../services/cache.service';
 import { RedisService } from '../services/redis.service';
+import { UploadModule } from './upload.module';
 
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, UploadModule],
   controllers: [SongController],
   providers: [SongService, PrismaService, CacheService, RedisService],
   exports: [SongService],

@@ -6,19 +6,30 @@ import * as path from 'path';
 // Initialize Firebase Admin SDK
 function initializeFirebase() {
   try {
-    // Try to load service account from file
-    const serviceAccountPath = path.resolve(__dirname, '../firebase-service-account.json');
-    if (fs.existsSync(serviceAccountPath)) {
-      const serviceAccount = require(serviceAccountPath);
+    // Try to load service account from secrets directory first
+    const secretsPath = path.resolve(__dirname, '../config/secrets/firebase-service-account.json');
+    if (fs.existsSync(secretsPath)) {
+      const serviceAccount = require(secretsPath);
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
       });
-      console.log('Firebase Admin SDK initialized successfully');
+      console.log('Firebase Admin SDK initialized successfully from secrets directory');
       return true;
-    } else {
-      console.error('Firebase service account file not found at:', serviceAccountPath);
-      return false;
     }
+
+    // Try to load from root directory (for backward compatibility)
+    const rootPath = path.resolve(__dirname, '../firebase-service-account.json');
+    if (fs.existsSync(rootPath)) {
+      const serviceAccount = require(rootPath);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+      console.log('Firebase Admin SDK initialized successfully from root directory');
+      return true;
+    }
+
+    console.error('Firebase service account file not found in either location');
+    return false;
   } catch (error) {
     console.error('Error initializing Firebase Admin SDK:', error);
     return false;

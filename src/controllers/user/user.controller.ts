@@ -1,7 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { UserService } from '../../services/user.service';
 import { CreateUserDto, UpdateUserDto, UserResponseDto } from '../../dto/user.dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { UserAuthGuard } from '../../guards/user-auth.guard';
+import { RolesGuard } from '../../guards/roles.guard';
+import { Roles } from '../../decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
+import { Response } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('users')
 @Controller('users')
@@ -53,5 +59,55 @@ export class UserController {
   @Delete(':id')
   remove(@Param('id') id: string): Promise<UserResponseDto> {
     return this.userService.remove(id);
+  }
+
+  @Get('export/csv')
+  @UseGuards(UserAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export all users to CSV' })
+  @ApiResponse({ status: 200, description: 'Return CSV file with all users.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  async exportToCsv(@Res() res: Response): Promise<void> {
+    const csv = await this.userService.exportToCsv();
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=users.csv');
+    res.send(csv);
+  }
+
+  @Post('import/csv')
+  @UseGuards(UserAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Import users from CSV' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiResponse({ status: 201, description: 'Users imported successfully.' })
+  @ApiResponse({ status: 400, description: 'Bad Request.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  async importFromCsv(@UploadedFile() file: Express.Multer.File): Promise<{ imported: number; errors: string[] }> {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    if (file.mimetype !== 'text/csv' && file.mimetype !== 'application/vnd.ms-excel') {
+      throw new BadRequestException('File must be a CSV');
+    }
+
+    return this.userService.importFromCsv(file.buffer);
   }
 }

@@ -237,4 +237,21 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   getClient(): Redis | null {
     return this.isReady() ? this.redisClient : null;
   }
+
+  /**
+   * Get Redis server info
+   * @returns Redis INFO command output
+   */
+  async getInfo(): Promise<string> {
+    if (!this.isReady()) {
+      return '';
+    }
+
+    try {
+      return await this.redisClient.info();
+    } catch (error: any) {
+      this.logger.error(`Error getting Redis info: ${error.message}`);
+      return '';
+    }
+  }
 }

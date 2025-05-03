@@ -1,8 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { CacheService, CachePrefix, CacheTTL } from './cache.service';
 import { CreateSongDto, UpdateSongDto, SongResponseDto } from '../dto/song.dto';
 import { Song } from '@prisma/client';
+import { parse as csvParse } from 'csv-parse';
+import { stringify as csvStringify } from 'csv-stringify';
+import { Readable } from 'stream';
 
 @Injectable()
 export class SongService {
@@ -282,5 +285,201 @@ export class SongService {
     this.logger.debug(`Invalidated cache for song ${id} after deletion`);
 
     return deletedSong;
+  }
+
+  /**
+   * Export all songs to CSV format
+   * @returns CSV string containing all songs
+   */
+  async exportToCsv(): Promise<string> {
+    this.logger.log('Exporting all songs to CSV');
+
+    try {
+      // Get all songs with related data
+      const songs = await this.prisma.song.findMany({
+        include: {
+          artist: true,
+          language: true,
+          songTags: {
+            include: {
+              tag: true,
+            },
+          },
+        },
+      });
+
+      this.logger.log(`Found ${songs.length} songs to export`);
+
+      // Transform data for CSV export
+      const csvData = songs.map(song => this.transformSongForCsv(song));
+
+      // Generate CSV
+      return new Promise((resolve, reject) => {
+        csvStringify(csvData, {
+          header: true,
+        }, (error, output) => {
+          if (error) {
+            this.logger.error(`Error generating CSV: ${error.message}`);
+            reject(new InternalServerErrorException('Failed to generate CSV'));
+          } else {
+            resolve(output);
+          }
+        });
+      });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error exporting songs to CSV: ${errorMessage}`);
+      throw new InternalServerErrorException('Failed to export songs to CSV');
+    }
+  }
+
+  /**
+   * Import songs from CSV buffer
+   * @param buffer CSV file buffer
+   * @returns Number of songs imported
+   */
+  async importFromCsv(buffer: Buffer): Promise<{ imported: number; errors: string[] }> {
+    this.logger.log('Importing songs from CSV');
+
+    try {
+      // Parse CSV buffer
+      const songs = await this.parseCsvBuffer(buffer);
+      this.logger.log(`Parsed ${songs.length} songs from CSV`);
+
+      const results = {
+        imported: 0,
+        errors: [] as string[],
+      };
+
+      // Process each song
+      for (const songData of songs) {
+        try {
+          // Check if song already exists by ID
+          if (songData.id) {
+            const existingSong = await this.prisma.song.findUnique({
+              where: { id: songData.id },
+            });
+
+            if (existingSong) {
+              // Update existing song
+              await this.update(songData.id, this.prepareSongDataForUpdate(songData));
+              results.imported++;
+              continue;
+            }
+          }
+
+          // Create new song
+          await this.create(this.prepareSongDataForCreate(songData));
+          results.imported++;
+        } catch (error: unknown) {
+          const errorMessage = `Error importing song ${songData.title || 'unknown'}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          this.logger.error(errorMessage);
+          results.errors.push(errorMessage);
+        }
+      }
+
+      // Invalidate songs list cache
+      await this.cacheService.deleteByPrefix(CachePrefix.SONGS);
+
+      return results;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error importing songs from CSV: ${errorMessage}`);
+      throw new InternalServerErrorException('Failed to import songs from CSV');
+    }
+  }
+
+  /**
+   * Parse a CSV buffer into an array of song objects
+   */
+  private async parseCsvBuffer(buffer: Buffer): Promise<any[]> {
+    return new Promise<any[]>((resolve, reject) => {
+      const results: any[] = [];
+
+      Readable.from(buffer)
+        .pipe(csvParse({
+          columns: true,
+          skip_empty_lines: true,
+          trim: true,
+        }))
+        .on('data', (data) => results.push(data))
+        .on('error', (error: unknown) => {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          this.logger.error(`Error parsing CSV buffer: ${errorMessage}`);
+          reject(error);
+        })
+        .on('end', () => {
+          resolve(results);
+        });
+    });
+  }
+
+  /**
+   * Transform a song entity to a flat object for CSV export
+   */
+  private transformSongForCsv(song: any): Record<string, any> {
+    // Extract tags as comma-separated string
+    const tags = song.songTags
+      ? song.songTags.map((st: any) => st.tag?.name).filter(Boolean).join(',')
+      : '';
+
+    return {
+      id: song.id,
+      title: song.title,
+      artistId: song.artistId,
+      artistName: song.artist?.name || '',
+      languageId: song.languageId || '',
+      languageName: song.language?.name || '',
+      key: song.key || '',
+      tempo: song.tempo || '',
+      timeSignature: song.timeSignature || '',
+      difficulty: song.difficulty || '',
+      capo: song.capo || 0,
+      chordSheet: song.chordSheet,
+      imageUrl: song.imageUrl || '',
+      tags: tags,
+      viewCount: song.viewCount || 0,
+      uniqueViewers: song.uniqueViewers || 0,
+      createdAt: song.createdAt.toISOString(),
+      updatedAt: song.updatedAt.toISOString(),
+    };
+  }
+
+  /**
+   * Prepare song data from CSV for create operation
+   */
+  private prepareSongDataForCreate(songData: any): CreateSongDto {
+    return {
+      title: songData.title,
+      artistId: songData.artistId,
+      languageId: songData.languageId || null,
+      key: songData.key || null,
+      tempo: songData.tempo ? parseInt(songData.tempo, 10) : undefined,
+      timeSignature: songData.timeSignature || null,
+      difficulty: songData.difficulty || null,
+      capo: songData.capo ? parseInt(songData.capo, 10) : 0,
+      chordSheet: songData.chordSheet,
+      imageUrl: songData.imageUrl || null,
+      tags: songData.tags ? songData.tags.split(',').map((tag: any) => tag.trim()) : [],
+    };
+  }
+
+  /**
+   * Prepare song data from CSV for update operation
+   */
+  private prepareSongDataForUpdate(songData: any): UpdateSongDto {
+    return {
+      title: songData.title,
+      artistId: songData.artistId,
+      languageId: songData.languageId || null,
+      key: songData.key || null,
+      tempo: songData.tempo ? parseInt(songData.tempo, 10) : undefined,
+      timeSignature: songData.timeSignature || null,
+      difficulty: songData.difficulty || null,
+      capo: songData.capo ? parseInt(songData.capo, 10) : 0,
+      chordSheet: songData.chordSheet,
+      imageUrl: songData.imageUrl || null,
+      tags: songData.tags ? songData.tags.split(',').map((tag: any) => tag.trim()) : [],
+    };
   }
 }

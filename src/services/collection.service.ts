@@ -1,9 +1,14 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { CreateCollectionDto, UpdateCollectionDto, CollectionResponseDto } from '../dto/collection.dto';
+import { parse as csvParse } from 'csv-parse';
+import { stringify as csvStringify } from 'csv-stringify';
+import { Readable } from 'stream';
 
 @Injectable()
 export class CollectionService {
+  private readonly logger = new Logger(CollectionService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createCollectionDto: CreateCollectionDto): Promise<CollectionResponseDto> {
@@ -192,5 +197,292 @@ export class CollectionService {
     });
 
     return deletedCollection;
+  }
+
+  /**
+   * Export all collections to CSV format
+   * @returns CSV string containing all collections
+   */
+  async exportToCsv(): Promise<string> {
+    this.logger.log('Exporting all collections to CSV');
+
+    try {
+      // Get all collections with related data
+      const collections = await this.prisma.collection.findMany({
+        include: {
+          songs: true,
+          collectionTags: {
+            include: {
+              tag: true,
+            },
+          },
+        },
+      });
+
+      this.logger.log(`Found ${collections.length} collections to export`);
+
+      // Transform data for CSV export
+      const csvData = collections.map(collection => this.transformCollectionForCsv(collection));
+
+      // Generate CSV
+      return new Promise((resolve, reject) => {
+        csvStringify(csvData, {
+          header: true,
+        }, (error, output) => {
+          if (error) {
+            this.logger.error(`Error generating CSV: ${error.message}`);
+            reject(new InternalServerErrorException('Failed to generate CSV'));
+          } else {
+            resolve(output);
+          }
+        });
+      });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error exporting collections to CSV: ${errorMessage}`);
+      throw new InternalServerErrorException('Failed to export collections to CSV');
+    }
+  }
+
+  /**
+   * Export collection-song relationships to CSV format
+   * @returns CSV string containing all collection-song relationships
+   */
+  async exportSongRelationshipsToCsv(): Promise<string> {
+    this.logger.log('Exporting collection-song relationships to CSV');
+
+    try {
+      // Get all collections with songs
+      const collections = await this.prisma.collection.findMany({
+        include: {
+          songs: {
+            include: {
+              artist: true,
+            },
+          },
+        },
+      });
+
+      // Create a flat list of collection-song relationships
+      const relationships: Array<{
+        collectionId: string;
+        collectionName: string;
+        songId: string;
+        songTitle: string;
+        artistName: string;
+      }> = [];
+
+      for (const collection of collections) {
+        for (const song of collection.songs) {
+          relationships.push({
+            collectionId: collection.id,
+            collectionName: collection.name,
+            songId: song.id,
+            songTitle: song.title,
+            artistName: song.artist?.name || '',
+          });
+        }
+      }
+
+      this.logger.log(`Found ${relationships.length} collection-song relationships to export`);
+
+      // Generate CSV
+      return new Promise((resolve, reject) => {
+        csvStringify(relationships, {
+          header: true,
+        }, (error, output) => {
+          if (error) {
+            this.logger.error(`Error generating CSV: ${error.message}`);
+            reject(new InternalServerErrorException('Failed to generate CSV'));
+          } else {
+            resolve(output);
+          }
+        });
+      });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error exporting collection-song relationships to CSV: ${errorMessage}`);
+      throw new InternalServerErrorException('Failed to export collection-song relationships to CSV');
+    }
+  }
+
+  /**
+   * Import collections from CSV buffer
+   * @param buffer CSV file buffer
+   * @returns Number of collections imported
+   */
+  async importFromCsv(buffer: Buffer): Promise<{ imported: number; errors: string[] }> {
+    this.logger.log('Importing collections from CSV');
+
+    try {
+      // Parse CSV buffer
+      const collections = await this.parseCsvBuffer(buffer);
+      this.logger.log(`Parsed ${collections.length} collections from CSV`);
+
+      const results = {
+        imported: 0,
+        errors: [] as string[],
+      };
+
+      // Process each collection
+      for (const collectionData of collections) {
+        try {
+          // Check if collection already exists by ID
+          if (collectionData.id) {
+            const existingCollection = await this.prisma.collection.findUnique({
+              where: { id: collectionData.id },
+            });
+
+            if (existingCollection) {
+              // Update existing collection
+              await this.update(collectionData.id, this.prepareCollectionDataForUpdate(collectionData));
+              results.imported++;
+              continue;
+            }
+          }
+
+          // Create new collection
+          await this.create(this.prepareCollectionDataForCreate(collectionData));
+          results.imported++;
+        } catch (error: unknown) {
+          const errorMessage = `Error importing collection ${collectionData.name || 'unknown'}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          this.logger.error(errorMessage);
+          results.errors.push(errorMessage);
+        }
+      }
+
+      return results;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error importing collections from CSV: ${errorMessage}`);
+      throw new InternalServerErrorException('Failed to import collections from CSV');
+    }
+  }
+
+  /**
+   * Import collection-song relationships from CSV buffer
+   * @param buffer CSV file buffer
+   * @returns Number of relationships imported
+   */
+  async importSongRelationshipsFromCsv(buffer: Buffer): Promise<{ imported: number; errors: string[] }> {
+    this.logger.log('Importing collection-song relationships from CSV');
+
+    try {
+      // Parse CSV buffer
+      const relationships = await this.parseCsvBuffer(buffer);
+      this.logger.log(`Parsed ${relationships.length} collection-song relationships from CSV`);
+
+      const results = {
+        imported: 0,
+        errors: [] as string[],
+      };
+
+      // Process each relationship
+      for (const relationship of relationships) {
+        try {
+          // Check if collection and song exist
+          if (!relationship.collectionId || !relationship.songId) {
+            throw new BadRequestException('Collection ID and Song ID are required');
+          }
+
+          // Add song to collection
+          await this.addSong(relationship.collectionId, relationship.songId);
+          results.imported++;
+        } catch (error: unknown) {
+          const errorMessage = `Error importing relationship between collection ${relationship.collectionId} and song ${relationship.songId}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          this.logger.error(errorMessage);
+          results.errors.push(errorMessage);
+        }
+      }
+
+      return results;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error importing collection-song relationships from CSV: ${errorMessage}`);
+      throw new InternalServerErrorException('Failed to import collection-song relationships from CSV');
+    }
+  }
+
+  /**
+   * Parse a CSV buffer into an array of objects
+   */
+  private async parseCsvBuffer(buffer: Buffer): Promise<any[]> {
+    return new Promise<any[]>((resolve, reject) => {
+      const results: any[] = [];
+
+      Readable.from(buffer)
+        .pipe(csvParse({
+          columns: true,
+          skip_empty_lines: true,
+          trim: true,
+        }))
+        .on('data', (data) => results.push(data))
+        .on('error', (error: unknown) => {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          this.logger.error(`Error parsing CSV buffer: ${errorMessage}`);
+          reject(error);
+        })
+        .on('end', () => {
+          resolve(results);
+        });
+    });
+  }
+
+  /**
+   * Transform a collection entity to a flat object for CSV export
+   */
+  private transformCollectionForCsv(collection: any): Record<string, any> {
+    // Extract tags as comma-separated string
+    const tags = collection.collectionTags
+      ? collection.collectionTags.map((ct: any) => ct.tag?.name).filter(Boolean).join(',')
+      : '';
+
+    // Extract song IDs as comma-separated string
+    const songIds = collection.songs
+      ? collection.songs.map((song: any) => song.id).join(',')
+      : '';
+
+    return {
+      id: collection.id,
+      name: collection.name,
+      description: collection.description || '',
+      imageUrl: collection.imageUrl || '',
+      isPublic: collection.isPublic ? 'true' : 'false',
+      viewCount: collection.viewCount || 0,
+      uniqueViewers: collection.uniqueViewers || 0,
+      tags: tags,
+      songIds: songIds,
+      songCount: collection.songs ? collection.songs.length : 0,
+      createdAt: collection.createdAt.toISOString(),
+      updatedAt: collection.updatedAt.toISOString(),
+    };
+  }
+
+  /**
+   * Prepare collection data from CSV for create operation
+   */
+  private prepareCollectionDataForCreate(collectionData: any): CreateCollectionDto {
+    return {
+      name: collectionData.name,
+      description: collectionData.description || null,
+      imageUrl: collectionData.imageUrl || null,
+      isPublic: collectionData.isPublic === 'true' || collectionData.isPublic === true,
+    };
+  }
+
+  /**
+   * Prepare collection data from CSV for update operation
+   */
+  private prepareCollectionDataForUpdate(collectionData: any): UpdateCollectionDto {
+    const updateData: UpdateCollectionDto = {};
+
+    if (collectionData.name !== undefined) updateData.name = collectionData.name;
+    if (collectionData.description !== undefined) updateData.description = collectionData.description || null;
+    if (collectionData.imageUrl !== undefined) updateData.imageUrl = collectionData.imageUrl || null;
+    if (collectionData.isPublic !== undefined) {
+      updateData.isPublic = collectionData.isPublic === 'true' || collectionData.isPublic === true;
+    }
+
+    return updateData;
   }
 }

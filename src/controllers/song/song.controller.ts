@@ -1,11 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { SongService } from '../../services/song.service';
 import { CreateSongDto, UpdateSongDto, SongResponseDto } from '../../dto/song.dto';
 import { UserAuthGuard } from '../../guards/user-auth.guard';
 import { RolesGuard } from '../../guards/roles.guard';
 import { Roles } from '../../decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
+import { Response } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('songs')
 @Controller('songs')
@@ -72,5 +74,55 @@ export class SongController {
   @ApiResponse({ status: 404, description: 'Song not found.' })
   async remove(@Param('id') id: string): Promise<SongResponseDto> {
     return this.songService.remove(id);
+  }
+
+  @Get('export/csv')
+  @UseGuards(UserAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export all songs to CSV' })
+  @ApiResponse({ status: 200, description: 'Return CSV file with all songs.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  async exportToCsv(@Res() res: Response): Promise<void> {
+    const csv = await this.songService.exportToCsv();
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=songs.csv');
+    res.send(csv);
+  }
+
+  @Post('import/csv')
+  @UseGuards(UserAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Import songs from CSV' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiResponse({ status: 201, description: 'Songs imported successfully.' })
+  @ApiResponse({ status: 400, description: 'Bad Request.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  async importFromCsv(@UploadedFile() file: Express.Multer.File): Promise<{ imported: number; errors: string[] }> {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    if (file.mimetype !== 'text/csv' && file.mimetype !== 'application/vnd.ms-excel') {
+      throw new BadRequestException('File must be a CSV');
+    }
+
+    return this.songService.importFromCsv(file.buffer);
   }
 }

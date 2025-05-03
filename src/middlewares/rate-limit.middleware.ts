@@ -28,7 +28,7 @@ export class RateLimitMiddleware implements NestMiddleware {
     [RateLimitTier.FREE]: { points: 60, duration: 60, blockDuration: 30 },
     [RateLimitTier.BASIC]: { points: 120, duration: 60, blockDuration: 0 },
     [RateLimitTier.PREMIUM]: { points: 240, duration: 60, blockDuration: 0 },
-    [RateLimitTier.ADMIN]: { points: 1000, duration: 60, blockDuration: 0 },
+    [RateLimitTier.ADMIN]: { points: 2000, duration: 60, blockDuration: 0 }, // Increased for admin users
   };
 
   // Endpoint sensitivity multipliers (higher = stricter limits)
@@ -37,7 +37,8 @@ export class RateLimitMiddleware implements NestMiddleware {
     '/api/songs': 1,         // Standard limit
     '/api/artists': 1,       // Standard limit
     '/api/comments': 0.7,    // Comments get slightly more lenient limits
-    '/api/admin': 0.3,       // Admin endpoints get more lenient limits
+    '/api/admin': 0.2,       // Admin endpoints get more lenient limits
+    '/api/admin/analytics': 0.1, // Analytics endpoints get very lenient limits
     '/api/chord-diagrams': 2, // Chord diagrams get stricter limits
   };
 
