@@ -240,10 +240,42 @@ export class SongService {
       }
     }
 
+    // Prepare data for update
+    const updateData: any = {};
+
+    // Copy fields from updateSongDto to updateData
+    if (updateSongDto.title !== undefined) updateData.title = updateSongDto.title;
+    // Handle artist relation correctly
+    if (updateSongDto.artistId !== undefined) {
+      updateData.artist = {
+        connect: { id: updateSongDto.artistId }
+      };
+    }
+    // Handle language relation correctly
+    if (updateSongDto.languageId !== undefined) {
+      if (updateSongDto.languageId) {
+        updateData.language = {
+          connect: { id: updateSongDto.languageId }
+        };
+      } else {
+        updateData.language = { disconnect: true };
+      }
+    }
+    if (updateSongDto.key !== undefined) updateData.key = updateSongDto.key;
+    if (updateSongDto.tempo !== undefined) updateData.tempo = updateSongDto.tempo;
+    if (updateSongDto.timeSignature !== undefined) updateData.timeSignature = updateSongDto.timeSignature;
+    if (updateSongDto.difficulty !== undefined) updateData.difficulty = updateSongDto.difficulty;
+    if (updateSongDto.capo !== undefined) updateData.capo = updateSongDto.capo;
+    if (updateSongDto.chordSheet !== undefined) updateData.chordSheet = updateSongDto.chordSheet;
+    if (updateSongDto.imageUrl !== undefined) updateData.imageUrl = updateSongDto.imageUrl;
+    if (updateSongDto.officialVideoUrl !== undefined) updateData.officialVideoUrl = updateSongDto.officialVideoUrl;
+    if (updateSongDto.tutorialVideoUrl !== undefined) updateData.tutorialVideoUrl = updateSongDto.tutorialVideoUrl;
+    if (updateSongDto.tags !== undefined) updateData.tags = updateSongDto.tags;
+
     // Update song
     const updatedSong = await this.prisma.song.update({
       where: { id },
-      data: updateSongDto,
+      data: updateData,
       include: {
         artist: true,
         language: true,
@@ -460,6 +492,8 @@ export class SongService {
       capo: songData.capo ? parseInt(songData.capo, 10) : 0,
       chordSheet: songData.chordSheet,
       imageUrl: songData.imageUrl || null,
+      officialVideoUrl: songData.officialVideoUrl || null,
+      tutorialVideoUrl: songData.tutorialVideoUrl || null,
       tags: songData.tags ? songData.tags.split(',').map((tag: any) => tag.trim()) : [],
     };
   }
@@ -479,6 +513,8 @@ export class SongService {
       capo: songData.capo ? parseInt(songData.capo, 10) : 0,
       chordSheet: songData.chordSheet,
       imageUrl: songData.imageUrl || null,
+      officialVideoUrl: songData.officialVideoUrl || null,
+      tutorialVideoUrl: songData.tutorialVideoUrl || null,
       tags: songData.tags ? songData.tags.split(',').map((tag: any) => tag.trim()) : [],
     };
   }

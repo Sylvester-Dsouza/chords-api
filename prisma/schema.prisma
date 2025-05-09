@@ -221,6 +221,9 @@ model Song {
   capo          Int      @default(0) // Capo position
   chordSheet    String   @map("chordSheet") @db.Text
   imageUrl      String?  // Cover image URL from Supabase Storage
+  // Video URLs
+  officialVideoUrl String? @map("officialVideoUrl") // URL to the official music video
+  tutorialVideoUrl String? @map("tutorialVideoUrl") // URL to a tutorial video showing how to play the song
   // transpose field removed as it will be handled in the Flutter app
   tags          String[] // Legacy field, will be replaced by the Tag relation
   createdAt     DateTime @default(now()) @map("createdAt")

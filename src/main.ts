@@ -19,25 +19,28 @@ async function bootstrap() {
   });
 
   // Enable CORS with specific configuration
-  app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:3002',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:3001',
-      'http://127.0.0.1:3002',
-      'http://192.168.1.5:3000',
-      'http://192.168.1.5:3001',
-      'http://192.168.1.5:3002',
-      'https://chords-admin.vercel.app',
-      'https://admin.yourapp.com',  // Add your production admin URL here
-      'https://app.yourapp.com'     // Add your production app URL here
-    ],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-  });
+  if (process.env.NODE_ENV === 'production') {
+    // In production, use a specific list of allowed origins
+    app.enableCors({
+      origin: [
+        'https://chords-admin.vercel.app',
+        'https://admin.yourapp.com',  // Add your production admin URL here
+        'https://app.yourapp.com'     // Add your production app URL here
+      ],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      credentials: true,
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    });
+  } else {
+    // In development, allow all origins
+    app.enableCors({
+      origin: true, // Allow all origins in development
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      credentials: true,
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    });
+    console.info('CORS enabled for all origins (development mode)');
+  }
 
   // Enable validation
   app.useGlobalPipes(new ValidationPipe({
@@ -88,7 +91,7 @@ async function bootstrap() {
   // Configure middleware
   configureMiddleware(app);
 
-  const port = process.env.PORT ?? 3002;
+  const port = process.env.PORT ?? 3001; // Use port 3001 by default
   await app.listen(port);
   // Using console.info is allowed by our ESLint rules
   if (process.env.MINIMAL_LOGS !== 'true') {

@@ -52,6 +52,16 @@ export class CreateSongDto {
   @IsOptional()
   imageUrl?: string;
 
+  @ApiProperty({ example: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', description: 'URL to the official music video', required: false })
+  @IsString()
+  @IsOptional()
+  officialVideoUrl?: string;
+
+  @ApiProperty({ example: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', description: 'URL to a tutorial video showing how to play the song', required: false })
+  @IsString()
+  @IsOptional()
+  tutorialVideoUrl?: string;
+
   @ApiProperty({ example: 0, description: 'Capo position', required: false, default: 0 })
   @IsInt()
   @Min(-10)
@@ -118,6 +128,16 @@ export class UpdateSongDto {
   @IsOptional()
   imageUrl?: string;
 
+  @ApiProperty({ example: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', description: 'URL to the official music video', required: false })
+  @IsString()
+  @IsOptional()
+  officialVideoUrl?: string;
+
+  @ApiProperty({ example: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', description: 'URL to a tutorial video showing how to play the song', required: false })
+  @IsString()
+  @IsOptional()
+  tutorialVideoUrl?: string;
+
   @ApiProperty({ example: 0, description: 'Capo position', required: false })
   @IsInt()
   @Min(-10)
@@ -172,6 +192,12 @@ export class SongResponseDto {
 
   @ApiProperty({ example: 'https://example.com/song-cover.jpg', description: 'URL to song cover image' })
   imageUrl?: string | null = null;
+
+  @ApiProperty({ example: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', description: 'URL to the official music video' })
+  officialVideoUrl?: string | null = null;
+
+  @ApiProperty({ example: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', description: 'URL to a tutorial video showing how to play the song' })
+  tutorialVideoUrl?: string | null = null;
 
   @ApiProperty({ example: 0, description: 'Capo position' })
   capo: number = 0;
