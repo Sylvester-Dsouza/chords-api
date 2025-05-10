@@ -37,6 +37,7 @@ import { SongRequestModule } from './modules/song-request.module';
 import { NotificationModule } from './modules/notification.module';
 import { CommentModule } from './modules/comment.module';
 import { SongRatingModule } from './modules/song-rating.module';
+import { HomeSectionModule } from './modules/home-section.module';
 import { HealthController } from './controllers/health/health.controller';
 
 import { PlaylistService } from './services/playlist.service';
@@ -46,6 +47,8 @@ import { NotificationHistoryService } from './services/notification-history.serv
 import { NotificationService } from './services/notification.service';
 import { CommentService } from './services/comment.service';
 import { SongRatingService } from './services/song-rating.service';
+import { HomeSectionService } from './services/home-section.service';
+import { BannerItemService } from './services/banner-item.service';
 
 @Module({
   imports: [
@@ -72,7 +75,8 @@ import { SongRatingService } from './services/song-rating.service';
     SongRequestModule,
     NotificationModule,
     CommentModule,
-    SongRatingModule
+    SongRatingModule,
+    HomeSectionModule
   ],
   controllers: [
     AppController,
@@ -98,7 +102,9 @@ import { SongRatingService } from './services/song-rating.service';
     NotificationHistoryService,
     NotificationService,
     CommentService,
-    SongRatingService
+    SongRatingService,
+    HomeSectionService,
+    BannerItemService
   ],
 })
 export class AppModule {}

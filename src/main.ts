@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { initializeFirebase } from './config/firebase.config';
 import { configureMiddleware } from './config/middleware.config';
+import { ValidationExceptionFilter } from './filters/validation-exception.filter';
 
 async function bootstrap() {
   // Initialize Firebase Admin SDK
@@ -47,7 +48,12 @@ async function bootstrap() {
     whitelist: true,
     forbidNonWhitelisted: true,
     transform: true,
+    // Make validation errors more detailed
+    validationError: { target: false, value: true },
   }));
+
+  // Register validation exception filter
+  app.useGlobalFilters(new ValidationExceptionFilter());
 
   // Set global prefix but exclude legacy routes
   app.setGlobalPrefix('api', {

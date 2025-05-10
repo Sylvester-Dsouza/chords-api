@@ -1,14 +1,31 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { PrismaService } from '../services/prisma.service';
 import { admin, isFirebaseInitialized } from '../config/firebase.config';
 import { UserRole } from '@prisma/client';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 @Injectable()
 export class UserAuthGuard implements CanActivate {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly reflector: Reflector
+  ) {}
 
   canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean> {
+    // Check if the endpoint is marked as public
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    // If the endpoint is public, allow access without authentication
+    if (isPublic) {
+      console.log('UserAuthGuard - Public endpoint, skipping authentication');
+      return true;
+    }
+
     const request = context.switchToHttp().getRequest();
     return this.validateRequest(request);
   }

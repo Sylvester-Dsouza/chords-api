@@ -73,10 +73,13 @@ export class SubscriptionService {
         },
       });
 
-      // Update customer subscription type
+      // Update customer subscription type and remove ads
       await this.prisma.customer.update({
         where: { id: createSubscriptionDto.customerId },
-        data: { subscriptionType: 'PREMIUM' },
+        data: {
+          subscriptionType: 'PREMIUM',
+          showAds: false // Automatically remove ads when customer subscribes
+        },
       });
 
       // Convert null to undefined for nullable fields
@@ -306,7 +309,10 @@ export class SubscriptionService {
       if (new Date() >= endDate) {
         await this.prisma.customer.update({
           where: { id: existingSubscription.customerId },
-          data: { subscriptionType: 'FREE' },
+          data: {
+            subscriptionType: 'FREE',
+            showAds: true // Restore ads when subscription is canceled
+          },
         });
       }
 
@@ -361,10 +367,13 @@ export class SubscriptionService {
         },
       });
 
-      // Update customer subscription type
+      // Update customer subscription type and restore ads
       await this.prisma.customer.update({
         where: { id: existingSubscription.customerId },
-        data: { subscriptionType: 'FREE' },
+        data: {
+          subscriptionType: 'FREE',
+          showAds: true // Restore ads when subscription is removed
+        },
       });
 
       // Convert null to undefined for nullable fields
