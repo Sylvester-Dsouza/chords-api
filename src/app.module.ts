@@ -36,6 +36,7 @@ import { UploadModule } from './modules/upload.module';
 import { SongRequestModule } from './modules/song-request.module';
 import { NotificationModule } from './modules/notification.module';
 import { CommentModule } from './modules/comment.module';
+import { SongRatingModule } from './modules/song-rating.module';
 import { HealthController } from './controllers/health/health.controller';
 
 import { PlaylistService } from './services/playlist.service';
@@ -44,6 +45,7 @@ import { SongRequestService } from './services/song-request.service';
 import { NotificationHistoryService } from './services/notification-history.service';
 import { NotificationService } from './services/notification.service';
 import { CommentService } from './services/comment.service';
+import { SongRatingService } from './services/song-rating.service';
 
 @Module({
   imports: [
@@ -69,7 +71,8 @@ import { CommentService } from './services/comment.service';
     UploadModule,
     SongRequestModule,
     NotificationModule,
-    CommentModule
+    CommentModule,
+    SongRatingModule
   ],
   controllers: [
     AppController,
@@ -94,7 +97,8 @@ import { CommentService } from './services/comment.service';
     SongRequestService,
     NotificationHistoryService,
     NotificationService,
-    CommentService
+    CommentService,
+    SongRatingService
   ],
 })
 export class AppModule {}

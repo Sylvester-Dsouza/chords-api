@@ -64,6 +64,7 @@ model Customer {
   playlists          Playlist[]
   refreshTokens      RefreshToken[]
   likedSongs         LikedSong[]
+  songRatings        SongRating[]
   subscriptions      Subscription[]
   transactions       Transaction[]
   songRequests       SongRequest[]
@@ -234,6 +235,10 @@ model Song {
   uniqueViewers Int       @default(0)
   lastViewed    DateTime?
 
+  // Aggregated rating fields for quick access
+  averageRating Float     @default(0) @map("averageRating")
+  ratingCount   Int       @default(0) @map("ratingCount")
+
   // Relations
   artist      Artist       @relation(fields: [artistId], references: [id])
   language    Language?    @relation(fields: [languageId], references: [id])
@@ -242,8 +247,30 @@ model Song {
   collections Collection[]
   songTags    SongTag[]
   comments    Comment[]
+  ratings     SongRating[]
 
   @@map("Song")
+}
+
+// Song Rating model for storing customer ratings of songs
+model SongRating {
+  id          String   @id @default(uuid())
+  songId      String   @map("songId")
+  customerId  String   @map("customerId")
+  rating      Int      @map("rating") // 1-5 star rating
+  comment     String?  @map("comment") @db.Text // Optional comment about the rating
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+
+  // Relations
+  song        Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  // Ensure a customer can only rate a song once
+  @@unique([songId, customerId])
+  @@index([songId])
+  @@index([customerId])
+  @@map("SongRating")
 }
 
 // Junction table for Song-Tag many-to-many relationship
@@ -303,7 +330,47 @@ model LikedSong {
   @@map("LikedSong")
 }
 
-// Banner model for home screen banners
+// Home Section model for managing home page content
+model HomeSection {
+  id          String     @id @default(uuid())
+  title       String     // Display title for the section (e.g., "Seasonal Collections")
+  type        SectionType // Type of content in this section
+  order       Int        @default(0) // Display order on home page
+  isActive    Boolean    @default(true) @map("isActive")
+  itemCount   Int        @default(10) // Number of items to display
+  filterType  String?    // Filter to apply (e.g., "seasonal", "trending", "new")
+  itemIds     String[]   // Optional specific item IDs to include
+  createdAt   DateTime   @default(now()) @map("createdAt")
+  updatedAt   DateTime   @updatedAt @map("updatedAt")
+
+  // Relations
+  bannerItems BannerItem[] // Only used when type is BANNER
+
+  @@map("HomeSection")
+}
+
+// Banner Item model for slides in banner sections
+model BannerItem {
+  id            String   @id @default(uuid())
+  homeSectionId String   @map("homeSectionId")
+  title         String
+  description   String?  @db.Text
+  imageUrl      String   // Image URL from Supabase Storage
+  linkType      String?  // Type of link (song, artist, collection, external)
+  linkId        String?  // ID of the linked item
+  externalUrl   String?  // URL for external links
+  order         Int      @default(0) // Display order in the banner
+  isActive      Boolean  @default(true) @map("isActive")
+  createdAt     DateTime @default(now()) @map("createdAt")
+  updatedAt     DateTime @updatedAt @map("updatedAt")
+
+  // Relations
+  homeSection   HomeSection @relation(fields: [homeSectionId], references: [id], onDelete: Cascade)
+
+  @@map("BannerItem")
+}
+
+// Legacy Banner model for home screen banners
 model Banner {
   id          String   @id @default(uuid())
   title       String
@@ -572,6 +639,13 @@ enum AuditLogSeverity {
   WARNING
   ERROR
   CRITICAL
+}
+
+enum SectionType {
+  COLLECTIONS
+  SONGS
+  ARTISTS
+  BANNER
 }
 
 // Audit logs for security and tracking

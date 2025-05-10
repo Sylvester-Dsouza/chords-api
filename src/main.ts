@@ -68,7 +68,8 @@ async function bootstrap() {
       '/liked-songs*',
       '/subscriptions*',
       '/song-requests*',
-      '/notifications*'
+      '/notifications*',
+      '/song-ratings*'  // Add song-ratings to the excluded routes
     ],
   });
 
