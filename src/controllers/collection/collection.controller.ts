@@ -1,13 +1,23 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Res, UseInterceptors, UploadedFile, BadRequestException, Req, Optional } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { CollectionService } from '../../services/collection.service';
 import { CreateCollectionDto, UpdateCollectionDto, CollectionResponseDto, AddSongToCollectionDto } from '../../dto/collection.dto';
 import { UserAuthGuard } from '../../guards/user-auth.guard';
 import { RolesGuard } from '../../guards/roles.guard';
 import { Roles } from '../../decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { CustomerAuthGuard } from '../../guards/customer-auth.guard';
+import { Public } from '../../decorators/public.decorator';
+
+interface RequestWithUser extends Request {
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+  };
+}
 
 @ApiTags('collections')
 @Controller('collections')
@@ -28,18 +38,31 @@ export class CollectionController {
   }
 
   @Get()
+  @Public()
   @ApiOperation({ summary: 'Get all collections' })
   @ApiResponse({ status: 200, description: 'Return all collections.', type: [CollectionResponseDto] })
-  async findAll(@Query('search') search?: string): Promise<CollectionResponseDto[]> {
-    return this.collectionService.findAll(search);
+  @ApiQuery({ name: 'search', required: false, description: 'Search term for filtering collections' })
+  @ApiQuery({ name: 'sortBy', required: false, description: 'Sort collections by: mostLiked, mostViewed, newest' })
+  async findAll(
+    @Query('search') search?: string,
+    @Query('sortBy') sortBy?: string,
+    @Req() req?: RequestWithUser
+  ): Promise<CollectionResponseDto[]> {
+    const customerId = req?.user?.id;
+    return this.collectionService.findAll(search, sortBy, customerId);
   }
 
   @Get(':id')
+  @Public()
   @ApiOperation({ summary: 'Get a collection by ID' })
   @ApiResponse({ status: 200, description: 'Return the collection.', type: CollectionResponseDto })
   @ApiResponse({ status: 404, description: 'Collection not found.' })
-  async findOne(@Param('id') id: string): Promise<CollectionResponseDto> {
-    return this.collectionService.findOne(id);
+  async findOne(
+    @Param('id') id: string,
+    @Req() req?: RequestWithUser
+  ): Promise<CollectionResponseDto> {
+    const customerId = req?.user?.id;
+    return this.collectionService.findOne(id, customerId);
   }
 
   @Patch(':id')

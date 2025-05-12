@@ -70,6 +70,15 @@ export class CollectionResponseDto {
   @ApiProperty({ description: 'Songs in the collection', type: [SongResponseDto] })
   songs?: SongResponseDto[] = [];
 
+  @ApiProperty({ example: 42, description: 'Number of likes for this collection' })
+  likeCount: number = 0;
+
+  @ApiProperty({ example: 100, description: 'Number of views for this collection' })
+  viewCount: number = 0;
+
+  @ApiProperty({ example: true, description: 'Whether the current user has liked this collection', required: false })
+  isLiked?: boolean;
+
   @ApiProperty({ example: '2023-01-01T00:00:00Z', description: 'Creation date' })
   createdAt: Date = new Date();
 

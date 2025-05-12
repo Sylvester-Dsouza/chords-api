@@ -28,7 +28,7 @@ export class CollectionService {
     return collection;
   }
 
-  async findAll(search?: string): Promise<CollectionResponseDto[]> {
+  async findAll(search?: string, sortBy?: string, customerId?: string): Promise<CollectionResponseDto[]> {
     const where: any = {
       isPublic: true,
     };
@@ -50,7 +50,18 @@ export class CollectionService {
       ];
     }
 
-    return this.prisma.collection.findMany({
+    // Determine the order by clause based on sortBy parameter
+    let orderBy: any = { name: 'asc' };
+    if (sortBy === 'mostLiked') {
+      orderBy = { likeCount: 'desc' };
+    } else if (sortBy === 'mostViewed') {
+      orderBy = { viewCount: 'desc' };
+    } else if (sortBy === 'newest') {
+      orderBy = { createdAt: 'desc' };
+    }
+
+    // Get collections
+    const collections = await this.prisma.collection.findMany({
       where,
       include: {
         songs: {
@@ -58,14 +69,33 @@ export class CollectionService {
             artist: true,
           },
         },
+        // Include liked status if customerId is provided
+        ...(customerId ? {
+          likedBy: {
+            where: {
+              customerId,
+            },
+          },
+        } : {}),
       },
-      orderBy: {
-        name: 'asc',
-      },
+      orderBy,
     });
+
+    // Add isLiked property to each collection if customerId is provided
+    if (customerId) {
+      return collections.map(collection => {
+        const { likedBy, ...collectionWithoutLikedBy } = collection;
+        return {
+          ...collectionWithoutLikedBy,
+          isLiked: likedBy && likedBy.length > 0,
+        };
+      });
+    }
+
+    return collections;
   }
 
-  async findOne(id: string): Promise<CollectionResponseDto> {
+  async findOne(id: string, customerId?: string): Promise<CollectionResponseDto> {
     const collection = await this.prisma.collection.findUnique({
       where: { id },
       include: {
@@ -74,11 +104,28 @@ export class CollectionService {
             artist: true,
           },
         },
+        // Include liked status if customerId is provided
+        ...(customerId ? {
+          likedBy: {
+            where: {
+              customerId,
+            },
+          },
+        } : {}),
       },
     });
 
     if (!collection) {
       throw new NotFoundException(`Collection with ID ${id} not found`);
+    }
+
+    // Add isLiked property if customerId is provided
+    if (customerId) {
+      const { likedBy, ...collectionWithoutLikedBy } = collection;
+      return {
+        ...collectionWithoutLikedBy,
+        isLiked: likedBy && likedBy.length > 0,
+      };
     }
 
     return collection;
