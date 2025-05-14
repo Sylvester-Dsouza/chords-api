@@ -127,6 +127,15 @@ export class HomeSectionController {
     return this.homeSectionService.getHomeSectionsForApp();
   }
 
+  @Get('app/section/:id/items')
+  @Public()
+  @ApiOperation({ summary: 'Get all items for a specific section by ID for the mobile app' })
+  @ApiResponse({ status: 200, description: 'Return all items for the section.' })
+  @ApiResponse({ status: 404, description: 'Section not found.' })
+  async getSectionItems(@Param('id') id: string): Promise<any[]> {
+    return this.homeSectionService.getSectionItemsForApp(id);
+  }
+
   @Get('test-create')
   @ApiOperation({ summary: 'Test endpoint to create a banner section' })
   @ApiResponse({ status: 201, description: 'Test banner section created successfully.' })

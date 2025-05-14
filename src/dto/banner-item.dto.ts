@@ -10,20 +10,19 @@ export enum LinkType {
 }
 
 export class CreateBannerItemDto {
-  @ApiProperty({ description: 'Title of the banner item', example: 'New Christmas Collection' })
+  @ApiPropertyOptional({ description: 'Title of the banner item', example: 'New Christmas Collection' })
   @IsString()
-  @IsNotEmpty()
-  title: string = '';
+  @IsOptional()
+  title?: string;
 
   @ApiPropertyOptional({ description: 'Description of the banner item', example: 'Check out our new Christmas songs!' })
   @IsString()
   @IsOptional()
   description?: string;
 
-  @ApiPropertyOptional({ description: 'Image URL from Supabase Storage', example: 'https://supabase.storage.url/banners/christmas.jpg' })
+  @ApiProperty({ description: 'Image URL from Supabase Storage', example: 'https://supabase.storage.url/banners/christmas.jpg' })
   @IsString()
-  @IsOptional()
-  imageUrl?: string;
+  imageUrl: string = '';
 
   @ApiPropertyOptional({
     description: 'Type of link',
@@ -31,7 +30,9 @@ export class CreateBannerItemDto {
     example: LinkType.COLLECTION,
     default: LinkType.NONE
   })
-  @IsEnum(LinkType)
+  @IsEnum(LinkType, {
+    message: 'linkType must be one of the following values: song, artist, collection, external, none (case insensitive)'
+  })
   @IsOptional()
   linkType?: LinkType;
 
@@ -39,7 +40,9 @@ export class CreateBannerItemDto {
     description: 'ID of the linked item (required when linkType is not EXTERNAL or NONE)',
     example: '123e4567-e89b-12d3-a456-426614174000'
   })
-  @IsUUID('4')
+  @IsUUID('4', {
+    message: 'linkId must be a valid UUID when provided'
+  })
   @IsOptional()
   linkId?: string;
 

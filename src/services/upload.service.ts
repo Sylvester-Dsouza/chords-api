@@ -10,7 +10,7 @@ export class UploadService {
   /**
    * Upload a file to Supabase Storage
    * @param buffer File buffer
-   * @param folder Folder to upload to (song-cover, artist-cover, collection-cover)
+   * @param folder Folder to upload to (song-cover, artist-cover, collection-cover, banner-image)
    * @param originalName Original file name
    * @param mimeType MIME type of the file
    * @returns URL of the uploaded file or null if upload failed

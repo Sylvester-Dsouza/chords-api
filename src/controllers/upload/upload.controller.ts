@@ -47,8 +47,8 @@ export class UploadController {
     this.logger.log(`Uploading file to folder: ${folder}`);
 
     // Validate folder
-    if (!['song-cover', 'artist-cover', 'collection-cover'].includes(folder)) {
-      throw new BadRequestException('Invalid folder. Must be one of: song-cover, artist-cover, collection-cover');
+    if (!['song-cover', 'artist-cover', 'collection-cover', 'banner-image'].includes(folder)) {
+      throw new BadRequestException('Invalid folder. Must be one of: song-cover, artist-cover, collection-cover, banner-image');
     }
 
     // Validate file type

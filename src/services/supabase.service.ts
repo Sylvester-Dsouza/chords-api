@@ -23,7 +23,7 @@ export class SupabaseService {
   /**
    * Upload a file to Supabase Storage
    * @param file Buffer containing the file data
-   * @param folder Folder to store the file in (e.g., 'song-cover', 'artist-cover')
+   * @param folder Folder to store the file in (e.g., 'song-cover', 'artist-cover', 'collection-cover', 'banner-image')
    * @param fileName Name of the file
    * @param contentType MIME type of the file
    * @returns URL of the uploaded file or null if upload failed

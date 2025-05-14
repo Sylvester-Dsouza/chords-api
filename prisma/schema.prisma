@@ -369,7 +369,7 @@ model HomeSection {
 model BannerItem {
   id            String   @id @default(uuid())
   homeSectionId String   @map("homeSectionId")
-  title         String
+  title         String?
   description   String?  @db.Text
   imageUrl      String   // Image URL from Supabase Storage
   linkType      String?  // Type of link (song, artist, collection, external)

@@ -46,7 +46,9 @@ export class HomeSectionService {
         bannerItems: data.type === SectionType.BANNER && data.bannerItems ? {
           create: data.bannerItems.map((item, index) => ({
             ...item,
+            title: item.title || 'Banner Item', // Set a default title if not provided
             imageUrl: item.imageUrl || 'placeholder.jpg', // Set a placeholder image URL if not provided
+            linkType: item.linkType || 'none', // Set a default linkType if not provided
             order: item.order ?? index
           }))
         } : undefined
@@ -399,6 +401,41 @@ export class HomeSectionService {
     }
 
     return artists;
+  }
+
+  // Get all items for a specific section by ID for the mobile app
+  async getSectionItemsForApp(id: string): Promise<any[]> {
+    // Find the section
+    const section = await this.prisma.homeSection.findUnique({
+      where: { id }
+    });
+
+    if (!section) {
+      throw new NotFoundException(`Home section with ID ${id} not found`);
+    }
+
+    // Get the items based on section type
+    switch (section.type) {
+      case SectionType.COLLECTIONS:
+        return this.getCollectionsForSection(section);
+      case SectionType.SONGS:
+        return this.getSongsForSection(section);
+      case SectionType.ARTISTS:
+        return this.getArtistsForSection(section);
+      case SectionType.BANNER:
+        // For banner sections, get the banner items from the database
+        return this.prisma.bannerItem.findMany({
+          where: {
+            homeSectionId: section.id,
+            isActive: true
+          },
+          orderBy: {
+            order: 'asc'
+          }
+        });
+      default:
+        return [];
+    }
   }
 
   // Helper method to get the highest order value

@@ -28,16 +28,33 @@ export class BannerItemService {
     // Get the highest order value to place new banner item at the end
     const highestOrder = await this.getHighestOrder(homeSectionId);
 
-    // Set a placeholder image URL if not provided
-    const imageUrl = createBannerItemDto.imageUrl || 'placeholder.jpg';
+    // Set default values for optional fields
+    const title = createBannerItemDto.title || 'Banner Item';
+
+    // Normalize linkType to lowercase for consistency
+    let linkType = createBannerItemDto.linkType || LinkType.NONE;
+    if (typeof linkType === 'string') {
+      linkType = linkType.toLowerCase() as LinkType;
+    }
+
+    // Prepare data with normalized values
+    const createData = {
+      ...createBannerItemDto,
+      title,
+      linkType,
+      homeSectionId,
+      order: createBannerItemDto.order ?? highestOrder + 1
+    };
+
+    // Only include linkId if it's needed for the current linkType
+    if (linkType !== LinkType.SONG &&
+        linkType !== LinkType.ARTIST &&
+        linkType !== LinkType.COLLECTION) {
+      createData.linkId = null;
+    }
 
     return this.prisma.bannerItem.create({
-      data: {
-        ...createBannerItemDto,
-        imageUrl,
-        homeSectionId,
-        order: createBannerItemDto.order ?? highestOrder + 1
-      }
+      data: createData
     });
   }
 
@@ -83,21 +100,37 @@ export class BannerItemService {
     // Check if banner item exists
     const existingItem = await this.findOne(id);
 
+    // Normalize linkType to lowercase for consistency
+    let updateData = { ...updateBannerItemDto };
+
+    if (updateData.linkType) {
+      if (typeof updateData.linkType === 'string') {
+        updateData.linkType = updateData.linkType.toLowerCase() as LinkType;
+      }
+
+      // If changing to a type that doesn't need linkId, clear it
+      if (updateData.linkType !== LinkType.SONG &&
+          updateData.linkType !== LinkType.ARTIST &&
+          updateData.linkType !== LinkType.COLLECTION) {
+        updateData.linkId = null;
+      }
+    }
+
     // Validate link type and required fields if they're being updated
-    if (updateBannerItemDto.linkType ||
-        updateBannerItemDto.linkId !== undefined ||
-        updateBannerItemDto.externalUrl !== undefined) {
+    if (updateData.linkType ||
+        updateData.linkId !== undefined ||
+        updateData.externalUrl !== undefined) {
 
       this.validateLinkFields({
-        linkType: updateBannerItemDto.linkType || existingItem.linkType as LinkType,
-        linkId: updateBannerItemDto.linkId !== undefined ? updateBannerItemDto.linkId : existingItem.linkId,
-        externalUrl: updateBannerItemDto.externalUrl !== undefined ? updateBannerItemDto.externalUrl : existingItem.externalUrl
+        linkType: updateData.linkType || existingItem.linkType as LinkType,
+        linkId: updateData.linkId !== undefined ? updateData.linkId : existingItem.linkId,
+        externalUrl: updateData.externalUrl !== undefined ? updateData.externalUrl : existingItem.externalUrl
       });
     }
 
     return this.prisma.bannerItem.update({
       where: { id },
-      data: updateBannerItemDto
+      data: updateData
     });
   }
 
@@ -151,14 +184,22 @@ export class BannerItemService {
   }
 
   // Helper method to validate link fields
-  private validateLinkFields(dto: { linkType?: LinkType; linkId?: string | null; externalUrl?: string | null }): void {
-    if (dto.linkType === LinkType.EXTERNAL && !dto.externalUrl) {
+  private validateLinkFields(dto: { linkType?: LinkType | string; linkId?: string | null; externalUrl?: string | null }): void {
+    // If linkType is not provided, skip validation
+    if (!dto.linkType) {
+      return;
+    }
+
+    // Normalize linkType to lowercase for case-insensitive comparison
+    const normalizedLinkType = typeof dto.linkType === 'string' ? dto.linkType.toLowerCase() : dto.linkType;
+
+    if (normalizedLinkType === LinkType.EXTERNAL.toLowerCase() && !dto.externalUrl) {
       throw new BadRequestException('externalUrl is required when linkType is EXTERNAL');
     }
 
-    if ((dto.linkType === LinkType.SONG ||
-         dto.linkType === LinkType.ARTIST ||
-         dto.linkType === LinkType.COLLECTION) &&
+    if ((normalizedLinkType === LinkType.SONG.toLowerCase() ||
+         normalizedLinkType === LinkType.ARTIST.toLowerCase() ||
+         normalizedLinkType === LinkType.COLLECTION.toLowerCase()) &&
         !dto.linkId) {
       throw new BadRequestException(`linkId is required when linkType is ${dto.linkType}`);
     }
