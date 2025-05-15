@@ -8,7 +8,13 @@ import { ValidationExceptionFilter } from './filters/validation-exception.filter
 
 async function bootstrap() {
   // Initialize Firebase Admin SDK
-  initializeFirebase();
+  const firebaseInitialized = initializeFirebase();
+  console.log(`Firebase initialization result: ${firebaseInitialized ? 'SUCCESS' : 'FAILED'}`);
+
+  // If Firebase initialization failed in production, log a warning but continue
+  if (!firebaseInitialized && process.env.NODE_ENV === 'production') {
+    console.error('WARNING: Firebase initialization failed in production environment. Authentication features may not work correctly.');
+  }
 
   // Configure logger to show only errors and warnings in production
   const app = await NestFactory.create(AppModule, {

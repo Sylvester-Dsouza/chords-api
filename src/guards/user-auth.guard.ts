@@ -55,7 +55,19 @@ export class UserAuthGuard implements CanActivate {
     try {
       // Check if Firebase is available
       if (!isFirebaseInitialized()) {
-        throw new UnauthorizedException('Firebase authentication is not available');
+        console.error('UserAuthGuard - Firebase authentication is not available, attempting to initialize');
+
+        // Try to initialize Firebase one more time
+        const { initializeFirebase } = require('../config/firebase.config');
+        initializeFirebase();
+
+        // Check again after initialization attempt
+        if (!isFirebaseInitialized()) {
+          console.error('UserAuthGuard - Firebase initialization failed, authentication not available');
+          throw new UnauthorizedException('Firebase authentication is not available');
+        } else {
+          console.log('UserAuthGuard - Firebase initialized successfully on retry');
+        }
       }
 
       // Verify Firebase token
