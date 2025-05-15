@@ -13,9 +13,9 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { BannerItemService } from '../../services/banner-item.service';
-import { CreateBannerItemDto, UpdateBannerItemDto, BannerItemDto, ReorderBannerItemsDto } from '../../dto/banner-item.dto';
+import { CreateBannerItemDto, UpdateBannerItemDto, ReorderBannerItemsDto } from '../../dto/banner-item.dto';
 import { UserAuthGuard } from '../../guards/user-auth.guard';
-import { UserRole } from '@prisma/client';
+import { UserRole, BannerItem } from '@prisma/client';
 import { Roles } from '../../decorators/roles.decorator';
 
 @ApiTags('Banner Items')
@@ -36,7 +36,7 @@ export class BannerItemController {
   async create(
     @Param('homeSectionId') homeSectionId: string,
     @Body() createBannerItemDto: CreateBannerItemDto
-  ): Promise<BannerItemDto> {
+  ): Promise<BannerItem> {
     return this.bannerItemService.create(homeSectionId, createBannerItemDto);
   }
 
@@ -53,7 +53,7 @@ export class BannerItemController {
   async findAll(
     @Param('homeSectionId') homeSectionId: string,
     @Query('includeInactive', new DefaultValuePipe(false), ParseBoolPipe) includeInactive: boolean
-  ): Promise<BannerItemDto[]> {
+  ): Promise<BannerItem[]> {
     return this.bannerItemService.findAll(homeSectionId, includeInactive);
   }
 
@@ -66,7 +66,7 @@ export class BannerItemController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Banner item not found.' })
-  async findOne(@Param('id') id: string): Promise<BannerItemDto> {
+  async findOne(@Param('id') id: string): Promise<BannerItem> {
     return this.bannerItemService.findOne(id);
   }
 
@@ -83,7 +83,7 @@ export class BannerItemController {
   async update(
     @Param('id') id: string,
     @Body() updateBannerItemDto: UpdateBannerItemDto
-  ): Promise<BannerItemDto> {
+  ): Promise<BannerItem> {
     return this.bannerItemService.update(id, updateBannerItemDto);
   }
 
@@ -96,7 +96,7 @@ export class BannerItemController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Banner item not found.' })
-  async remove(@Param('id') id: string): Promise<BannerItemDto> {
+  async remove(@Param('id') id: string): Promise<BannerItem> {
     return this.bannerItemService.remove(id);
   }
 
@@ -113,7 +113,7 @@ export class BannerItemController {
   async reorder(
     @Param('homeSectionId') homeSectionId: string,
     @Body() reorderDto: ReorderBannerItemsDto
-  ): Promise<BannerItemDto[]> {
+  ): Promise<BannerItem[]> {
     return this.bannerItemService.reorder(homeSectionId, reorderDto);
   }
 }

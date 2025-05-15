@@ -38,13 +38,14 @@ export class CreateBannerItemDto {
 
   @ApiPropertyOptional({
     description: 'ID of the linked item (required when linkType is not EXTERNAL or NONE)',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    nullable: true
   })
   @IsUUID('4', {
     message: 'linkId must be a valid UUID when provided'
   })
   @IsOptional()
-  linkId?: string;
+  linkId?: string | null;
 
   @ApiPropertyOptional({
     description: 'URL for external links (required when linkType is EXTERNAL)',
@@ -100,11 +101,12 @@ export class UpdateBannerItemDto {
 
   @ApiPropertyOptional({
     description: 'ID of the linked item (required when linkType is not EXTERNAL or NONE)',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    nullable: true
   })
   @IsUUID('4')
   @IsOptional()
-  linkId?: string;
+  linkId?: string | null;
 
   @ApiPropertyOptional({
     description: 'URL for external links (required when linkType is EXTERNAL)',
@@ -138,8 +140,8 @@ export class BannerItemDto {
   @ApiProperty({ description: 'Home section ID this banner item belongs to', example: '123e4567-e89b-12d3-a456-426614174000' })
   homeSectionId: string = '';
 
-  @ApiProperty({ description: 'Title of the banner item', example: 'New Christmas Collection' })
-  title: string = '';
+  @ApiProperty({ description: 'Title of the banner item', example: 'New Christmas Collection', nullable: true })
+  title: string | null = null;
 
   @ApiProperty({ description: 'Description of the banner item', example: 'Check out our new Christmas songs!' })
   description?: string | null = null;

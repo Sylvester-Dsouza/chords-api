@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { CreateBannerItemDto, UpdateBannerItemDto, ReorderBannerItemsDto, LinkType } from '../dto/banner-item.dto';
-import { BannerItem, SectionType } from '@prisma/client';
+import { BannerItem, SectionType, Prisma } from '@prisma/client';
 
 @Injectable()
 export class BannerItemService {
@@ -37,13 +37,24 @@ export class BannerItemService {
       linkType = linkType.toLowerCase() as LinkType;
     }
 
+    // Make sure imageUrl is included (required by Prisma schema)
+    if (!createBannerItemDto.imageUrl) {
+      throw new BadRequestException('imageUrl is required for banner items');
+    }
+
     // Prepare data with normalized values
-    const createData = {
-      ...createBannerItemDto,
+    const createData: Prisma.BannerItemCreateInput = {
       title,
-      linkType,
-      homeSectionId,
-      order: createBannerItemDto.order ?? highestOrder + 1
+      linkType: linkType as string,
+      order: createBannerItemDto.order ?? highestOrder + 1,
+      imageUrl: createBannerItemDto.imageUrl,
+      description: createBannerItemDto.description,
+      isActive: createBannerItemDto.isActive ?? true,
+      homeSection: {
+        connect: {
+          id: homeSectionId
+        }
+      }
     };
 
     // Only include linkId if it's needed for the current linkType
@@ -51,6 +62,13 @@ export class BannerItemService {
         linkType !== LinkType.ARTIST &&
         linkType !== LinkType.COLLECTION) {
       createData.linkId = null;
+    } else {
+      createData.linkId = createBannerItemDto.linkId;
+    }
+
+    // Include externalUrl if provided
+    if (createBannerItemDto.externalUrl) {
+      createData.externalUrl = createBannerItemDto.externalUrl;
     }
 
     return this.prisma.bannerItem.create({
@@ -101,17 +119,18 @@ export class BannerItemService {
     const existingItem = await this.findOne(id);
 
     // Normalize linkType to lowercase for consistency
-    let updateData = { ...updateBannerItemDto };
+    let updateData: Prisma.BannerItemUpdateInput = { ...updateBannerItemDto };
 
     if (updateData.linkType) {
       if (typeof updateData.linkType === 'string') {
-        updateData.linkType = updateData.linkType.toLowerCase() as LinkType;
+        updateData.linkType = (updateData.linkType as string).toLowerCase();
       }
 
       // If changing to a type that doesn't need linkId, clear it
-      if (updateData.linkType !== LinkType.SONG &&
-          updateData.linkType !== LinkType.ARTIST &&
-          updateData.linkType !== LinkType.COLLECTION) {
+      const linkTypeValue = updateData.linkType as string;
+      if (linkTypeValue !== LinkType.SONG &&
+          linkTypeValue !== LinkType.ARTIST &&
+          linkTypeValue !== LinkType.COLLECTION) {
         updateData.linkId = null;
       }
     }
@@ -121,10 +140,23 @@ export class BannerItemService {
         updateData.linkId !== undefined ||
         updateData.externalUrl !== undefined) {
 
+      // Extract the actual values for validation
+      const linkTypeValue = typeof updateData.linkType === 'string'
+        ? updateData.linkType
+        : existingItem.linkType as string;
+
+      const linkIdValue = updateData.linkId !== undefined
+        ? (typeof updateData.linkId === 'string' ? updateData.linkId : null)
+        : existingItem.linkId;
+
+      const externalUrlValue = updateData.externalUrl !== undefined
+        ? (typeof updateData.externalUrl === 'string' ? updateData.externalUrl : null)
+        : existingItem.externalUrl;
+
       this.validateLinkFields({
-        linkType: updateData.linkType || existingItem.linkType as LinkType,
-        linkId: updateData.linkId !== undefined ? updateData.linkId : existingItem.linkId,
-        externalUrl: updateData.externalUrl !== undefined ? updateData.externalUrl : existingItem.externalUrl
+        linkType: linkTypeValue as LinkType,
+        linkId: linkIdValue,
+        externalUrl: externalUrlValue
       });
     }
 
