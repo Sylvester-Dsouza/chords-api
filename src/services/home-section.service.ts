@@ -130,21 +130,35 @@ export class HomeSectionService {
         data.itemCount = data.itemCount || 0;
         // Filter type is not used for banner sections
         data.filterType = undefined;
-        // Initialize itemIds as empty array if not provided
-        data.itemIds = data.itemIds || [];
       }
-    } else {
-      // For other section types, initialize itemIds as empty array if not provided
-      data.itemIds = data.itemIds || [];
     }
 
-    return this.prisma.homeSection.update({
+    // IMPORTANT: Only update itemIds if explicitly provided in the request
+    // Otherwise, preserve the existing itemIds
+    if (!data.itemIds) {
+      // Remove itemIds from the update data to prevent overwriting
+      delete data.itemIds;
+    }
+
+    console.log(`Updating section ${id} with data:`, JSON.stringify(data, null, 2));
+
+    // Update the section with the provided data
+    const updatedSection = await this.prisma.homeSection.update({
       where: { id },
       data,
       include: {
         bannerItems: true
       }
     });
+
+    // If itemIds wasn't in the update data, make sure it's included in the response
+    if (!data.itemIds && !updatedSection.itemIds) {
+      // Fetch the complete section to ensure we have itemIds
+      const completeSection = await this.findOne(id);
+      updatedSection.itemIds = completeSection.itemIds;
+    }
+
+    return updatedSection;
   }
 
   // Delete a home section
@@ -168,6 +182,9 @@ export class HomeSectionService {
         id: {
           in: reorderDto.sectionIds
         }
+      },
+      include: {
+        bannerItems: true
       }
     });
 
@@ -175,15 +192,26 @@ export class HomeSectionService {
       throw new NotFoundException('One or more section IDs not found');
     }
 
-    // Update order for each section
+    // Create a map of existing sections for quick lookup
+    const sectionsMap = new Map(
+      existingSections.map(section => [section.id, section])
+    );
+
+    // Update order for each section while preserving other data
     const updatePromises = reorderDto.sectionIds.map((id, index) => {
+      const existingSection = sectionsMap.get(id);
+
+      // Only update the order field, preserving all other data
       return this.prisma.homeSection.update({
         where: { id },
-        data: { order: index }
+        data: { order: index },
+        include: {
+          bannerItems: true
+        }
       });
     });
 
-    await Promise.all(updatePromises);
+    const updatedSections = await Promise.all(updatePromises);
 
     // Return the updated sections in order
     return this.findAll(true);
@@ -204,6 +232,8 @@ export class HomeSectionService {
             items = await this.getCollectionsForSection(section);
             break;
           case SectionType.SONGS:
+          case SectionType.SONG_LIST:
+            // Both SONGS and SONG_LIST contain Song objects, just displayed differently
             items = await this.getSongsForSection(section);
             break;
           case SectionType.ARTISTS:
@@ -419,6 +449,9 @@ export class HomeSectionService {
       case SectionType.COLLECTIONS:
         return this.getCollectionsForSection(section);
       case SectionType.SONGS:
+        return this.getSongsForSection(section);
+      case SectionType.SONG_LIST:
+        // SONG_LIST uses the same data as SONGS, just displayed differently in the app
         return this.getSongsForSection(section);
       case SectionType.ARTISTS:
         return this.getArtistsForSection(section);

@@ -15,7 +15,7 @@ export class CreateHomeSectionDto {
     example: SectionType.COLLECTIONS,
     enumName: 'SectionType'
   })
-  @IsEnum(SectionType, { message: 'Type must be one of: COLLECTIONS, SONGS, ARTISTS, BANNER' })
+  @IsEnum(SectionType, { message: 'Type must be one of: COLLECTIONS, SONGS, ARTISTS, BANNER, SONG_LIST' })
   type: SectionType = SectionType.COLLECTIONS;
 
   @ApiPropertyOptional({
