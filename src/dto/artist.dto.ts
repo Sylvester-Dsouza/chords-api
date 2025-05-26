@@ -50,6 +50,11 @@ export class CreateArtistDto {
   @IsOptional()
   isFeatured?: boolean;
 
+  @ApiProperty({ example: true, description: 'Whether the artist is active', required: false, default: true })
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+
   @ApiProperty({
     description: 'Social media links',
     required: false,
@@ -88,6 +93,11 @@ export class UpdateArtistDto {
   @IsOptional()
   isFeatured?: boolean;
 
+  @ApiProperty({ example: true, description: 'Whether the artist is active', required: false })
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+
   @ApiProperty({
     description: 'Social media links',
     required: false,
@@ -118,6 +128,9 @@ export class ArtistResponseDto {
 
   @ApiProperty({ example: true, description: 'Whether the artist is featured' })
   isFeatured: boolean = false;
+
+  @ApiProperty({ example: true, description: 'Whether the artist is active' })
+  isActive: boolean = true;
 
   @ApiProperty({ description: 'Social media links', type: 'object' })
   socialLinks?: JsonValue | Record<string, any> | null = null;

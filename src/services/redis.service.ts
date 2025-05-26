@@ -205,6 +205,32 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Get multiple values from Redis in a single operation
+   * @param keys Array of keys to get
+   * @returns Array of values (null for non-existent keys)
+   */
+  async getMultiple(keys: string[]): Promise<(any | null)[]> {
+    if (!this.isReady() || keys.length === 0) {
+      return keys.map(() => null);
+    }
+
+    try {
+      const values = await this.redisClient.mget(...keys);
+      return values.map(value => {
+        if (value === null) return null;
+        try {
+          return JSON.parse(value);
+        } catch {
+          return value;
+        }
+      });
+    } catch (error: any) {
+      this.logger.error(`Error getting multiple Redis keys: ${error.message}`);
+      return keys.map(() => null);
+    }
+  }
+
+  /**
    * Increment a counter in Redis
    * @param key The key to increment
    * @param ttlSeconds Time to live in seconds (only set if the key doesn't exist)

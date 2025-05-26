@@ -28,6 +28,7 @@ export class ArtistService {
       imageUrl: createArtistDto.imageUrl,
       website: createArtistDto.website,
       isFeatured: createArtistDto.isFeatured,
+      isActive: createArtistDto.isActive,
       socialLinks: createArtistDto.socialLinks ? JSON.parse(JSON.stringify(createArtistDto.socialLinks)) : undefined
     };
 
@@ -98,6 +99,7 @@ export class ArtistService {
     if (updateArtistDto.imageUrl !== undefined) data.imageUrl = updateArtistDto.imageUrl;
     if (updateArtistDto.website !== undefined) data.website = updateArtistDto.website;
     if (updateArtistDto.isFeatured !== undefined) data.isFeatured = updateArtistDto.isFeatured;
+    if (updateArtistDto.isActive !== undefined) data.isActive = updateArtistDto.isActive;
     if (updateArtistDto.socialLinks !== undefined) {
       data.socialLinks = updateArtistDto.socialLinks ? JSON.parse(JSON.stringify(updateArtistDto.socialLinks)) : null;
     }
@@ -290,6 +292,7 @@ export class ArtistService {
       website: artist.website || '',
       socialLinks: socialLinks,
       isFeatured: artist.isFeatured ? 'true' : 'false',
+      isActive: artist.isActive ? 'true' : 'false',
       viewCount: artist.viewCount || 0,
       uniqueViewers: artist.uniqueViewers || 0,
       tags: tags,
@@ -322,6 +325,7 @@ export class ArtistService {
       website: artistData.website || null,
       socialLinks: socialLinks,
       isFeatured: artistData.isFeatured === 'true' || artistData.isFeatured === true,
+      isActive: artistData.isActive === 'true' || artistData.isActive === true,
     };
   }
 
@@ -351,6 +355,9 @@ export class ArtistService {
     if (artistData.socialLinks !== undefined) updateData.socialLinks = socialLinks;
     if (artistData.isFeatured !== undefined) {
       updateData.isFeatured = artistData.isFeatured === 'true' || artistData.isFeatured === true;
+    }
+    if (artistData.isActive !== undefined) {
+      updateData.isActive = artistData.isActive === 'true' || artistData.isActive === true;
     }
 
     return updateData;

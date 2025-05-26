@@ -61,7 +61,7 @@ model Customer {
   updatedAt DateTime @updatedAt @map("updatedAt")
 
   // Relations
-  playlists          Playlist[]
+  setlists           Setlist[]
   refreshTokens      RefreshToken[]
   likedSongs         LikedSong[]
   likedCollections   LikedCollection[]
@@ -93,6 +93,7 @@ model Artist {
   website     String? // Website URL
   socialLinks Json? // Store social media links (JSON array)
   isFeatured  Boolean  @default(false) @map("isFeatured") // Whether the artist is featured
+  isActive    Boolean  @default(true) @map("isActive") // Whether the artist is active
   createdAt   DateTime @default(now()) @map("createdAt")
   updatedAt   DateTime @updatedAt @map("updatedAt")
 
@@ -105,6 +106,12 @@ model Artist {
   songs Song[]
   artistTags ArtistTag[]
 
+  // Performance indexes
+  @@index([name])
+  @@index([isActive])
+  @@index([isFeatured])
+  @@index([viewCount])
+  @@index([createdAt])
   @@map("Artist")
 }
 
@@ -212,17 +219,18 @@ model Transaction {
 
 // Songs with chords in the system
 model Song {
-  id            String   @id @default(uuid())
+  id            String     @id @default(uuid())
   title         String
-  artistId      String   @map("artistId")
-  languageId    String?  @map("languageId") // Optional to maintain backward compatibility
+  artistId      String     @map("artistId")
+  languageId    String?    @map("languageId") // Optional to maintain backward compatibility
   key           String?
   tempo         Int?
-  timeSignature String?  @map("timeSignature")
+  timeSignature String?    @map("timeSignature")
   difficulty    String?
-  capo          Int      @default(0) // Capo position
-  chordSheet    String   @map("chordSheet") @db.Text
-  imageUrl      String?  // Cover image URL from Supabase Storage
+  capo          Int        @default(0) // Capo position
+  chordSheet    String     @map("chordSheet") @db.Text
+  imageUrl      String?    // Cover image URL from Supabase Storage
+  status        SongStatus @default(ACTIVE) // Song status: DRAFT or ACTIVE
   // Video URLs
   officialVideoUrl String? @map("officialVideoUrl") // URL to the official music video
   tutorialVideoUrl String? @map("tutorialVideoUrl") // URL to a tutorial video showing how to play the song
@@ -244,12 +252,23 @@ model Song {
   artist      Artist       @relation(fields: [artistId], references: [id])
   language    Language?    @relation(fields: [languageId], references: [id])
   likedBy     LikedSong[]
-  playlists   Playlist[] // Direct many-to-many relation
+  setlists    Setlist[] // Direct many-to-many relation
   collections Collection[]
   songTags    SongTag[]
   comments    Comment[]
   ratings     SongRating[]
 
+  // Performance indexes
+  @@index([title])
+  @@index([artistId])
+  @@index([languageId])
+  @@index([key])
+  @@index([status])
+  @@index([viewCount])
+  @@index([averageRating])
+  @@index([createdAt])
+  @@index([artistId, status])
+  @@index([languageId, status])
   @@map("Song")
 }
 
@@ -409,6 +428,7 @@ model Collection {
   description String?  @db.Text
   imageUrl    String?
   isPublic    Boolean  @default(true)
+  isActive    Boolean  @default(true) @map("isActive") // Whether the collection is active
   createdAt   DateTime @default(now()) @map("createdAt")
   updatedAt   DateTime @updatedAt @map("updatedAt")
 
@@ -423,11 +443,18 @@ model Collection {
   collectionTags CollectionTag[]
   likedBy LikedCollection[] // Relation to track who liked this collection
 
+  // Performance indexes
+  @@index([name])
+  @@index([isActive])
+  @@index([isPublic])
+  @@index([viewCount])
+  @@index([likeCount])
+  @@index([createdAt])
   @@map("Collection")
 }
 
-// Customer playlists
-model Playlist {
+// Customer setlists
+model Setlist {
   id          String   @id @default(uuid())
   name        String
   description String?
@@ -439,7 +466,7 @@ model Playlist {
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   songs    Song[] // Direct many-to-many relation
 
-  @@map("Playlist")
+  @@map("Setlist")
 }
 
 // Song Request model
@@ -665,6 +692,11 @@ enum SectionType {
   ARTISTS
   BANNER
   SONG_LIST
+}
+
+enum SongStatus {
+  DRAFT
+  ACTIVE
 }
 
 // Audit logs for security and tracking

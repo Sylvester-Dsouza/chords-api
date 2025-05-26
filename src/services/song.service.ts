@@ -266,6 +266,7 @@ export class SongService {
     if (updateSongDto.timeSignature !== undefined) updateData.timeSignature = updateSongDto.timeSignature;
     if (updateSongDto.difficulty !== undefined) updateData.difficulty = updateSongDto.difficulty;
     if (updateSongDto.capo !== undefined) updateData.capo = updateSongDto.capo;
+    if (updateSongDto.status !== undefined) updateData.status = updateSongDto.status;
     if (updateSongDto.chordSheet !== undefined) updateData.chordSheet = updateSongDto.chordSheet;
     if (updateSongDto.imageUrl !== undefined) updateData.imageUrl = updateSongDto.imageUrl;
     if (updateSongDto.officialVideoUrl !== undefined) updateData.officialVideoUrl = updateSongDto.officialVideoUrl;
@@ -467,6 +468,7 @@ export class SongService {
       timeSignature: song.timeSignature || '',
       difficulty: song.difficulty || '',
       capo: song.capo || 0,
+      status: song.status || 'ACTIVE',
       chordSheet: song.chordSheet,
       imageUrl: song.imageUrl || '',
       tags: tags,
@@ -490,6 +492,7 @@ export class SongService {
       timeSignature: songData.timeSignature || null,
       difficulty: songData.difficulty || null,
       capo: songData.capo ? parseInt(songData.capo, 10) : 0,
+      status: songData.status || 'ACTIVE',
       chordSheet: songData.chordSheet,
       imageUrl: songData.imageUrl || null,
       officialVideoUrl: songData.officialVideoUrl || null,
@@ -511,6 +514,7 @@ export class SongService {
       timeSignature: songData.timeSignature || null,
       difficulty: songData.difficulty || null,
       capo: songData.capo ? parseInt(songData.capo, 10) : 0,
+      status: songData.status || 'ACTIVE',
       chordSheet: songData.chordSheet,
       imageUrl: songData.imageUrl || null,
       officialVideoUrl: songData.officialVideoUrl || null,

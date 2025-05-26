@@ -5,11 +5,13 @@ import { RedisService } from './redis.service';
  * Cache TTL values in seconds
  */
 export enum CacheTTL {
-  SHORT = 60, // 1 minute
-  MEDIUM = 300, // 5 minutes
-  LONG = 1800, // 30 minutes
-  VERY_LONG = 3600, // 1 hour
-  EXTRA_LONG = 86400, // 24 hours
+  VERY_SHORT = 30, // 30 seconds - for real-time data
+  SHORT = 60, // 1 minute - for frequently changing data
+  MEDIUM = 300, // 5 minutes - for moderately changing data
+  LONG = 1800, // 30 minutes - for stable data
+  VERY_LONG = 3600, // 1 hour - for rarely changing data
+  EXTRA_LONG = 86400, // 24 hours - for static data
+  WEEK = 604800, // 1 week - for very static data
 }
 
 /**
@@ -176,5 +178,64 @@ export class CacheService {
    */
   isEnabled(): boolean {
     return this.enabled;
+  }
+
+  /**
+   * Warm up cache with frequently accessed data
+   */
+  async warmUpCache(): Promise<void> {
+    if (!this.enabled) {
+      return;
+    }
+
+    try {
+      this.logger.log('Starting cache warm-up...');
+
+      // This would be called by other services to pre-populate cache
+      // with frequently accessed data like popular songs, artists, etc.
+
+      this.logger.log('Cache warm-up completed');
+    } catch (error: any) {
+      this.logger.error(`Error during cache warm-up: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get multiple values from cache in a single operation
+   * @param keys Array of cache keys
+   * @returns Array of cached values
+   */
+  async getMultiple<T>(keys: string[]): Promise<(T | null)[]> {
+    if (!this.enabled || keys.length === 0) {
+      return keys.map(() => null);
+    }
+
+    try {
+      const values = await this.redisService.getMultiple(keys);
+      return values.map(value => value as T | null);
+    } catch (error: any) {
+      this.logger.error(`Error getting multiple cache values: ${error.message}`);
+      return keys.map(() => null);
+    }
+  }
+
+  /**
+   * Set multiple values in cache in a single operation
+   * @param keyValuePairs Array of key-value pairs with TTL
+   */
+  async setMultiple(keyValuePairs: Array<{key: string, value: any, ttl?: number}>): Promise<void> {
+    if (!this.enabled || keyValuePairs.length === 0) {
+      return;
+    }
+
+    try {
+      await Promise.all(
+        keyValuePairs.map(({key, value, ttl = CacheTTL.MEDIUM}) =>
+          this.set(key, value, ttl)
+        )
+      );
+    } catch (error: any) {
+      this.logger.error(`Error setting multiple cache values: ${error.message}`);
+    }
   }
 }

@@ -74,6 +74,11 @@ export class CreateSongDto {
   @IsString({ each: true })
   @IsOptional()
   tags?: string[];
+
+  @ApiProperty({ example: 'ACTIVE', description: 'Song status', enum: ['DRAFT', 'ACTIVE'], required: false, default: 'ACTIVE' })
+  @IsString()
+  @IsOptional()
+  status?: 'DRAFT' | 'ACTIVE';
 }
 
 export class UpdateSongDto {
@@ -150,6 +155,11 @@ export class UpdateSongDto {
   @IsString({ each: true })
   @IsOptional()
   tags?: string[];
+
+  @ApiProperty({ example: 'ACTIVE', description: 'Song status', enum: ['DRAFT', 'ACTIVE'], required: false })
+  @IsString()
+  @IsOptional()
+  status?: 'DRAFT' | 'ACTIVE';
 }
 
 export class SongResponseDto {
@@ -204,6 +214,9 @@ export class SongResponseDto {
 
   @ApiProperty({ example: ['worship', 'contemporary'], description: 'Song tags' })
   tags: string[] = [];
+
+  @ApiProperty({ example: 'ACTIVE', description: 'Song status', enum: ['DRAFT', 'ACTIVE'] })
+  status: 'DRAFT' | 'ACTIVE' = 'ACTIVE';
 
   @ApiProperty({ example: '2023-01-01T00:00:00Z', description: 'Creation date' })
   createdAt: Date = new Date();

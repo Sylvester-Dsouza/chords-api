@@ -19,6 +19,7 @@ export class CollectionService {
         description: createCollectionDto.description,
         imageUrl: createCollectionDto.imageUrl,
         isPublic: createCollectionDto.isPublic ?? true,
+        isActive: createCollectionDto.isActive ?? true,
       },
       include: {
         songs: true,
@@ -495,6 +496,7 @@ export class CollectionService {
       description: collection.description || '',
       imageUrl: collection.imageUrl || '',
       isPublic: collection.isPublic ? 'true' : 'false',
+      isActive: collection.isActive ? 'true' : 'false',
       viewCount: collection.viewCount || 0,
       uniqueViewers: collection.uniqueViewers || 0,
       tags: tags,
@@ -514,6 +516,7 @@ export class CollectionService {
       description: collectionData.description || null,
       imageUrl: collectionData.imageUrl || null,
       isPublic: collectionData.isPublic === 'true' || collectionData.isPublic === true,
+      isActive: collectionData.isActive === 'true' || collectionData.isActive === true,
     };
   }
 
@@ -528,6 +531,9 @@ export class CollectionService {
     if (collectionData.imageUrl !== undefined) updateData.imageUrl = collectionData.imageUrl || null;
     if (collectionData.isPublic !== undefined) {
       updateData.isPublic = collectionData.isPublic === 'true' || collectionData.isPublic === true;
+    }
+    if (collectionData.isActive !== undefined) {
+      updateData.isActive = collectionData.isActive === 'true' || collectionData.isActive === true;
     }
 
     return updateData;

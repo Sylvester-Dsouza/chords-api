@@ -8,6 +8,16 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       log: process.env.MINIMAL_LOGS === 'true'
         ? ['error', 'warn']
         : ['query', 'info', 'warn', 'error'],
+      datasources: {
+        db: {
+          url: process.env.DATABASE_URL,
+        },
+      },
+      // Transaction options for better performance
+      transactionOptions: {
+        maxWait: 5000, // 5 seconds max wait time
+        timeout: 10000, // 10 seconds timeout
+      },
     });
   }
 

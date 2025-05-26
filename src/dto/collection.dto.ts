@@ -21,6 +21,11 @@ export class CreateCollectionDto {
   @IsBoolean()
   @IsOptional()
   isPublic?: boolean;
+
+  @ApiProperty({ example: true, description: 'Whether the collection is active', required: false, default: true })
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }
 
 export class UpdateCollectionDto {
@@ -43,6 +48,11 @@ export class UpdateCollectionDto {
   @IsBoolean()
   @IsOptional()
   isPublic?: boolean;
+
+  @ApiProperty({ example: true, description: 'Whether the collection is active', required: false })
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }
 
 export class AddSongToCollectionDto {
@@ -66,6 +76,9 @@ export class CollectionResponseDto {
 
   @ApiProperty({ example: true, description: 'Whether the collection is public' })
   isPublic: boolean = true;
+
+  @ApiProperty({ example: true, description: 'Whether the collection is active' })
+  isActive: boolean = true;
 
   @ApiProperty({ description: 'Songs in the collection', type: [SongResponseDto] })
   songs?: SongResponseDto[] = [];

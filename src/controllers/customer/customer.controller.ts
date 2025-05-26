@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { CustomerService } from '../../services/customer.service';
-import { PlaylistService } from '../../services/playlist.service';
+import { SetlistService } from '../../services/setlist.service';
 import { LikedSongService } from '../../services/liked-song.service';
 import { SongRequestService } from '../../services/song-request.service';
 import { NotificationHistoryService } from '../../services/notification-history.service';
@@ -10,7 +10,7 @@ import { UserAuthGuard } from '../../guards/user-auth.guard';
 import { RolesGuard } from '../../guards/roles.guard';
 import { Roles } from '../../decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
-import { PlaylistResponseDto } from '../../dto/playlist.dto';
+import { SetlistResponseDto } from '../../dto/setlist.dto';
 import { SongResponseDto } from '../../dto/song.dto';
 import { SongRequestResponseDto } from '../../dto/song-request.dto';
 import { NotificationHistoryResponseDto } from '../../dto/notification.dto';
@@ -22,7 +22,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 export class CustomerController {
   constructor(
     private readonly customerService: CustomerService,
-    private readonly playlistService: PlaylistService,
+    private readonly setlistService: SetlistService,
     private readonly likedSongService: LikedSongService,
     private readonly songRequestService: SongRequestService,
     private readonly notificationHistoryService: NotificationHistoryService,
@@ -77,14 +77,14 @@ export class CustomerController {
 
   @ApiBearerAuth()
   @UseGuards(UserAuthGuard)
-  @ApiOperation({ summary: 'Get all playlists for a customer' })
+  @ApiOperation({ summary: 'Get all setlists for a customer' })
   @ApiParam({ name: 'id', description: 'Customer ID' })
-  @ApiResponse({ status: 200, description: 'Return all playlists for the customer.', type: [PlaylistResponseDto] })
+  @ApiResponse({ status: 200, description: 'Return all setlists for the customer.', type: [SetlistResponseDto] })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
-  @Get(':id/playlists')
-  async getCustomerPlaylists(@Param('id') customerId: string): Promise<PlaylistResponseDto[]> {
-    return this.playlistService.findAllByCustomer(customerId);
+  @Get(':id/setlists')
+  async getCustomerSetlists(@Param('id') customerId: string): Promise<SetlistResponseDto[]> {
+    return this.setlistService.findAllByCustomer(customerId);
   }
 
   @ApiBearerAuth()

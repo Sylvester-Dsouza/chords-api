@@ -76,7 +76,7 @@ async function bootstrap() {
       '/users*',
       '/chord-diagrams*',
       '/upload*',
-      '/playlists*',
+      '/setlists*',
       '/liked-songs*',
       '/subscriptions*',
       '/song-requests*',

@@ -22,7 +22,7 @@ import { RequestValidationMiddleware } from './middlewares/request-validation.mi
 import { TokenService } from './services/token.service';
 import { AuditLogService } from './services/audit-log.service';
 import { CollectionModule } from './modules/collection.module';
-import { PlaylistModule } from './modules/playlist.module';
+import { SetlistModule } from './modules/setlist.module';
 import { LikedSongModule } from './modules/liked-song.module';
 import { TagModule } from './modules/tag.module';
 import { LanguageModule } from './modules/language.module';
@@ -40,7 +40,7 @@ import { SongRatingModule } from './modules/song-rating.module';
 import { HomeSectionModule } from './modules/home-section.module';
 import { HealthController } from './controllers/health/health.controller';
 
-import { PlaylistService } from './services/playlist.service';
+import { SetlistService } from './services/setlist.service';
 import { LikedSongService } from './services/liked-song.service';
 import { SongRequestService } from './services/song-request.service';
 import { NotificationHistoryService } from './services/notification-history.service';
@@ -58,7 +58,7 @@ import { BannerItemService } from './services/banner-item.service';
     ArtistModule,
     SongModule,
     CollectionModule,
-    PlaylistModule,
+    SetlistModule,
     ChordDiagramModule,
     AnalyticsModule,
     SystemMonitoringModule,
@@ -96,7 +96,7 @@ import { BannerItemService } from './services/banner-item.service';
     RequestValidationMiddleware,
     TokenService,
     AuditLogService,
-    PlaylistService,
+    SetlistService,
     LikedSongService,
     SongRequestService,
     NotificationHistoryService,
