@@ -89,6 +89,12 @@ export class CollectionResponseDto {
   @ApiProperty({ example: 100, description: 'Number of views for this collection' })
   viewCount: number = 0;
 
+  @ApiProperty({ example: 67, description: 'Number of unique viewers for this collection' })
+  uniqueViewers: number = 0;
+
+  @ApiProperty({ example: '2023-01-01T00:00:00Z', description: 'Last time this collection was viewed', required: false })
+  lastViewed?: Date | null = null;
+
   @ApiProperty({ example: true, description: 'Whether the current user has liked this collection', required: false })
   isLiked?: boolean;
 

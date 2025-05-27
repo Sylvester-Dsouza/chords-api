@@ -166,6 +166,197 @@ export class SongService {
     }
   }
 
+  // New paginated method for better performance
+  async findAllPaginated(filters: {
+    search?: string;
+    artistId?: string;
+    tags?: string;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  } = {}): Promise<{ data: SongResponseDto[]; pagination: any }> {
+    const {
+      search,
+      artistId,
+      tags,
+      page = 1,
+      limit = 20,
+      sortBy = 'title',
+      sortOrder = 'asc'
+    } = filters;
+
+    const cacheKey = this.cacheService.createListKey(CachePrefix.SONGS, filters);
+
+    try {
+      return await this.cacheService.getOrSet(
+        cacheKey,
+        async () => {
+          this.logger.debug(`Cache miss for paginated songs with filters: ${JSON.stringify(filters)}`);
+
+          const where: any = {};
+
+          // Add search filter
+          if (search) {
+            where.OR = [
+              {
+                title: {
+                  contains: search,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                artist: {
+                  name: {
+                    contains: search,
+                    mode: 'insensitive',
+                  },
+                },
+              },
+            ];
+          }
+
+          // Add artist filter
+          if (artistId) {
+            where.artistId = artistId;
+          }
+
+          // Add tags filter
+          if (tags) {
+            const tagList = tags.split(',').map(tag => tag.trim());
+            where.tags = {
+              hasSome: tagList,
+            };
+          }
+
+          // Calculate pagination
+          const skip = (page - 1) * limit;
+
+          // Get total count for pagination
+          const total = await this.prisma.song.count({ where });
+
+          // Build orderBy based on sortBy parameter
+          let orderBy: any = { title: 'asc' };
+          if (sortBy === 'createdAt') {
+            orderBy = { createdAt: sortOrder };
+          } else if (sortBy === 'viewCount') {
+            orderBy = { viewCount: sortOrder };
+          } else if (sortBy === 'averageRating') {
+            orderBy = { averageRating: sortOrder };
+          } else if (sortBy === 'artist') {
+            orderBy = { artist: { name: sortOrder } };
+          }
+
+          const songs = await this.prisma.song.findMany({
+            where,
+            include: {
+              artist: true,
+              language: true,
+            },
+            orderBy,
+            skip,
+            take: limit,
+          });
+
+          const totalPages = Math.ceil(total / limit);
+
+          return {
+            data: songs,
+            pagination: {
+              page,
+              limit,
+              total,
+              totalPages,
+              hasNext: page < totalPages,
+              hasPrev: page > 1,
+            },
+          };
+        },
+        // Use shorter TTL for search results
+        search ? CacheTTL.SHORT : CacheTTL.MEDIUM
+      );
+    } catch (error: any) {
+      this.logger.error(`Error fetching paginated songs with filters ${JSON.stringify(filters)}: ${error.message}`);
+
+      // Fallback to direct database query if cache fails
+      const where: any = {};
+
+      // Add search filter
+      if (search) {
+        where.OR = [
+          {
+            title: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+          {
+            artist: {
+              name: {
+                contains: search,
+                mode: 'insensitive',
+              },
+            },
+          },
+        ];
+      }
+
+      // Add artist filter
+      if (artistId) {
+        where.artistId = artistId;
+      }
+
+      // Add tags filter
+      if (tags) {
+        const tagList = tags.split(',').map(tag => tag.trim());
+        where.tags = {
+          hasSome: tagList,
+        };
+      }
+
+      // Calculate pagination for fallback
+      const skip = (page - 1) * limit;
+      const total = await this.prisma.song.count({ where });
+
+      // Build orderBy based on sortBy parameter
+      let orderBy: any = { title: 'asc' };
+      if (sortBy === 'createdAt') {
+        orderBy = { createdAt: sortOrder };
+      } else if (sortBy === 'viewCount') {
+        orderBy = { viewCount: sortOrder };
+      } else if (sortBy === 'averageRating') {
+        orderBy = { averageRating: sortOrder };
+      } else if (sortBy === 'artist') {
+        orderBy = { artist: { name: sortOrder } };
+      }
+
+      const songs = await this.prisma.song.findMany({
+        where,
+        include: {
+          artist: true,
+          language: true,
+        },
+        orderBy,
+        skip,
+        take: limit,
+      });
+
+      const totalPages = Math.ceil(total / limit);
+
+      return {
+        data: songs,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1,
+        },
+      };
+    }
+  }
+
   async findOne(id: string): Promise<SongResponseDto> {
     const cacheKey = this.cacheService.createKey(CachePrefix.SONG, id);
 

@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { SetlistService } from '../../services/setlist.service';
-import { CreateSetlistDto, UpdateSetlistDto, SetlistResponseDto, AddSongToSetlistDto } from '../../dto/setlist.dto';
+import { CreateSetlistDto, UpdateSetlistDto, SetlistResponseDto, AddSongToSetlistDto, AddMultipleSongsToSetlistDto } from '../../dto/setlist.dto';
 import { CustomerAuthGuard } from '../../guards/customer-auth.guard';
 import { Request } from 'express';
 
@@ -86,6 +86,22 @@ export class SetlistController {
   ): Promise<SetlistResponseDto> {
     const customerId = req.user.id;
     return this.setlistService.addSong(id, customerId, addSongDto.songId);
+  }
+
+  @Post(':id/songs/bulk')
+  @ApiOperation({ summary: 'Add multiple songs to a setlist' })
+  @ApiResponse({ status: 200, description: 'The songs have been successfully added to the setlist.', type: SetlistResponseDto })
+  @ApiResponse({ status: 400, description: 'Bad Request.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 404, description: 'Setlist or songs not found.' })
+  async addMultipleSongs(
+    @Param('id') id: string,
+    @Body() addMultipleSongsDto: AddMultipleSongsToSetlistDto,
+    @Req() req: RequestWithUser
+  ): Promise<SetlistResponseDto> {
+    const customerId = req.user.id;
+    return this.setlistService.addMultipleSongs(id, customerId, addMultipleSongsDto.songIds);
   }
 
   @Delete(':id/songs/:songId')

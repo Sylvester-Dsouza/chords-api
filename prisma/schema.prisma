@@ -269,6 +269,10 @@ model Song {
   @@index([createdAt])
   @@index([artistId, status])
   @@index([languageId, status])
+  @@index([title, status]) // For title search with status filter
+  @@index([viewCount, status]) // For popular songs
+  @@index([averageRating, status]) // For top-rated songs
+  @@index([createdAt, status]) // For newest songs
   @@map("Song")
 }
 
@@ -466,6 +470,10 @@ model Setlist {
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   songs    Song[] // Direct many-to-many relation
 
+  // Performance indexes
+  @@index([customerId])
+  @@index([customerId, updatedAt])
+  @@index([name])
   @@map("Setlist")
 }
 

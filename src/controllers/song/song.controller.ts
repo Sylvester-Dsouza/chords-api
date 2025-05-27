@@ -38,6 +38,32 @@ export class SongController {
     return this.songService.findAll(search, artistId, tags);
   }
 
+  @Get('paginated')
+  @ApiOperation({ summary: 'Get songs with pagination' })
+  @ApiResponse({ status: 200, description: 'Return paginated songs.' })
+  async findAllPaginated(
+    @Query('search') search?: string,
+    @Query('artistId') artistId?: string,
+    @Query('tags') tags?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: 'asc' | 'desc',
+  ): Promise<{ data: SongResponseDto[]; pagination: any }> {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+
+    return this.songService.findAllPaginated({
+      search,
+      artistId,
+      tags,
+      page: pageNum,
+      limit: limitNum,
+      sortBy,
+      sortOrder,
+    });
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a song by ID' })
   @ApiResponse({ status: 200, description: 'Return the song.', type: SongResponseDto })

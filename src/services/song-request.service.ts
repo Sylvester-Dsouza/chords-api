@@ -65,7 +65,7 @@ export class SongRequestService {
     return this.mapSongRequestToDto(songRequest);
   }
 
-  async findAll(status?: string): Promise<SongRequestResponseDto[]> {
+  async findAll(status?: string, currentCustomerId?: string): Promise<SongRequestResponseDto[]> {
     const where = status ? { status: status.toUpperCase() } : {};
 
     const songRequests = await this.prisma.songRequest.findMany({
@@ -85,8 +85,16 @@ export class SongRequestService {
       },
     });
 
-    // Convert null values to undefined for DTO compatibility
-    return songRequests.map(request => this.mapSongRequestToDto(request));
+    // Convert null values to undefined for DTO compatibility and check upvote status
+    return songRequests.map(request => {
+      // Check if the current customer has upvoted this request
+      let hasUpvoted = false;
+      if (currentCustomerId) {
+        hasUpvoted = request.upvotedBy.some(upvote => upvote.customerId === currentCustomerId);
+      }
+
+      return this.mapSongRequestToDto(request, hasUpvoted);
+    });
   }
 
   async findAllByCustomer(customerId: string): Promise<SongRequestResponseDto[]> {

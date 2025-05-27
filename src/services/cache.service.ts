@@ -24,6 +24,8 @@ export enum CachePrefix {
   ARTISTS = 'artists:',
   COLLECTION = 'collection:',
   COLLECTIONS = 'collections:',
+  SETLIST = 'setlist:',
+  SETLISTS = 'setlists:',
   TAG = 'tag:',
   TAGS = 'tags:',
   LANGUAGE = 'language:',

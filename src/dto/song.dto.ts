@@ -218,6 +218,15 @@ export class SongResponseDto {
   @ApiProperty({ example: 'ACTIVE', description: 'Song status', enum: ['DRAFT', 'ACTIVE'] })
   status: 'DRAFT' | 'ACTIVE' = 'ACTIVE';
 
+  @ApiProperty({ example: 1245, description: 'Number of views for this song' })
+  viewCount: number = 0;
+
+  @ApiProperty({ example: 87, description: 'Number of unique viewers for this song' })
+  uniqueViewers: number = 0;
+
+  @ApiProperty({ example: '2023-01-01T00:00:00Z', description: 'Last time this song was viewed', required: false })
+  lastViewed?: Date | null = null;
+
   @ApiProperty({ example: '2023-01-01T00:00:00Z', description: 'Creation date' })
   createdAt: Date = new Date();
 

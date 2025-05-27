@@ -57,8 +57,13 @@ export class SongRequestController {
   @ApiOperation({ summary: 'Get all song requests' })
   @ApiQuery({ name: 'status', required: false, enum: SongRequestStatus })
   @ApiResponse({ status: 200, description: 'Return all song requests.', type: [SongRequestResponseDto] })
-  async findAll(@Query('status') status?: string): Promise<SongRequestResponseDto[]> {
-    return this.songRequestService.findAll(status);
+  async findAll(
+    @Req() req: RequestWithUser,
+    @Query('status') status?: string,
+  ): Promise<SongRequestResponseDto[]> {
+    // Pass the current customer ID to check upvote status
+    const customerId = req.user?.id;
+    return this.songRequestService.findAll(status, customerId);
   }
 
   @Get('my-requests')
@@ -76,8 +81,8 @@ export class SongRequestController {
   @ApiResponse({ status: 200, description: 'Return the song request.', type: SongRequestResponseDto })
   @ApiResponse({ status: 404, description: 'Song request not found.' })
   async findOne(
-    @Param('id') id: string,
     @Req() req: RequestWithUser,
+    @Param('id') id: string,
   ): Promise<SongRequestResponseDto> {
     // If the user is authenticated, pass their ID to check if they've upvoted
     const customerId = req.user?.id;

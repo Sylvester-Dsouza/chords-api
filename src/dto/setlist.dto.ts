@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsUUID } from 'class-validator';
+import { IsString, IsOptional, IsUUID, IsArray } from 'class-validator';
 import { SongResponseDto } from './song.dto';
 
 export class CreateSetlistDto {
@@ -29,6 +29,16 @@ export class AddSongToSetlistDto {
   @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000', description: 'Song ID' })
   @IsUUID()
   songId: string = '';
+}
+
+export class AddMultipleSongsToSetlistDto {
+  @ApiProperty({
+    example: ['123e4567-e89b-12d3-a456-426614174000', '456e7890-e89b-12d3-a456-426614174001'],
+    description: 'Array of Song IDs to add to setlist'
+  })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  songIds: string[] = [];
 }
 
 export class SetlistResponseDto {

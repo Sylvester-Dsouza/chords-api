@@ -135,6 +135,15 @@ export class ArtistResponseDto {
   @ApiProperty({ description: 'Social media links', type: 'object' })
   socialLinks?: JsonValue | Record<string, any> | null = null;
 
+  @ApiProperty({ example: 3245, description: 'Number of views for this artist' })
+  viewCount: number = 0;
+
+  @ApiProperty({ example: 187, description: 'Number of unique viewers for this artist' })
+  uniqueViewers: number = 0;
+
+  @ApiProperty({ example: '2023-01-01T00:00:00Z', description: 'Last time this artist was viewed', required: false })
+  lastViewed?: Date | null = null;
+
   @ApiProperty({ example: '2023-01-01T00:00:00Z', description: 'Creation date' })
   createdAt: Date = new Date();
 
