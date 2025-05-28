@@ -1,7 +1,21 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { SetlistService } from '../../services/setlist.service';
-import { CreateSetlistDto, UpdateSetlistDto, SetlistResponseDto, AddSongToSetlistDto, AddMultipleSongsToSetlistDto } from '../../dto/setlist.dto';
+import {
+  CreateSetlistDto,
+  UpdateSetlistDto,
+  SetlistResponseDto,
+  AddSongToSetlistDto,
+  AddMultipleSongsToSetlistDto,
+  ShareSetlistDto,
+  UpdateCollaboratorDto,
+  SetlistSettingsDto,
+  CreateSetlistCommentDto,
+  SetlistSyncDto,
+  SetlistCollaboratorResponseDto,
+  SetlistActivityResponseDto,
+  SetlistCommentResponseDto
+} from '../../dto/setlist.dto';
 import { CustomerAuthGuard } from '../../guards/customer-auth.guard';
 import { Request } from 'express';
 
@@ -131,5 +145,194 @@ export class SetlistController {
   ): Promise<SetlistResponseDto> {
     const customerId = req.user.id;
     return this.setlistService.remove(id, customerId);
+  }
+
+  // ==================== COLLABORATIVE ENDPOINTS ====================
+
+  @Post(':id/share')
+  @ApiOperation({ summary: 'Share a setlist with another user' })
+  @ApiResponse({ status: 201, description: 'The setlist has been successfully shared.', type: SetlistCollaboratorResponseDto })
+  @ApiResponse({ status: 400, description: 'Bad Request.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 404, description: 'Setlist not found.' })
+  @ApiResponse({ status: 409, description: 'Setlist is already shared with this user.' })
+  async shareSetlist(
+    @Param('id') id: string,
+    @Body() shareDto: ShareSetlistDto,
+    @Req() req: RequestWithUser
+  ): Promise<SetlistCollaboratorResponseDto> {
+    const customerId = req.user.id;
+    return this.setlistService.shareSetlist(id, customerId, shareDto);
+  }
+
+  @Post('join/:shareCode')
+  @ApiOperation({ summary: 'Accept a setlist invitation using share code' })
+  @ApiResponse({ status: 200, description: 'The invitation has been accepted.', type: SetlistResponseDto })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 404, description: 'Invalid share code or no pending invitation.' })
+  async acceptInvitation(
+    @Param('shareCode') shareCode: string,
+    @Req() req: RequestWithUser
+  ): Promise<SetlistResponseDto> {
+    const customerId = req.user.id;
+    return this.setlistService.acceptInvitation(shareCode, customerId);
+  }
+
+  @Get(':id/collaborators')
+  @ApiOperation({ summary: 'Get all collaborators for a setlist' })
+  @ApiResponse({ status: 200, description: 'Return all collaborators.', type: [SetlistCollaboratorResponseDto] })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 404, description: 'Setlist not found.' })
+  async getCollaborators(
+    @Param('id') id: string,
+    @Req() req: RequestWithUser
+  ): Promise<SetlistCollaboratorResponseDto[]> {
+    const customerId = req.user.id;
+    return this.setlistService.getCollaborators(id, customerId);
+  }
+
+  @Patch(':id/collaborators/:collaboratorId')
+  @ApiOperation({ summary: 'Update collaborator permissions' })
+  @ApiResponse({ status: 200, description: 'The collaborator permissions have been updated.', type: SetlistCollaboratorResponseDto })
+  @ApiResponse({ status: 400, description: 'Bad Request.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 404, description: 'Setlist or collaborator not found.' })
+  async updateCollaborator(
+    @Param('id') id: string,
+    @Param('collaboratorId') collaboratorId: string,
+    @Body() updateDto: UpdateCollaboratorDto,
+    @Req() req: RequestWithUser
+  ): Promise<SetlistCollaboratorResponseDto> {
+    const customerId = req.user.id;
+    return this.setlistService.updateCollaborator(id, customerId, collaboratorId, updateDto);
+  }
+
+  @Delete(':id/collaborators/:collaboratorId')
+  @ApiOperation({ summary: 'Remove a collaborator from a setlist' })
+  @ApiResponse({ status: 200, description: 'The collaborator has been removed.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 404, description: 'Setlist or collaborator not found.' })
+  async removeCollaborator(
+    @Param('id') id: string,
+    @Param('collaboratorId') collaboratorId: string,
+    @Req() req: RequestWithUser
+  ): Promise<void> {
+    const customerId = req.user.id;
+    return this.setlistService.removeCollaborator(id, customerId, collaboratorId);
+  }
+
+  @Get(':id/activities')
+  @ApiOperation({ summary: 'Get activity log for a setlist' })
+  @ApiResponse({ status: 200, description: 'Return activity log.', type: [SetlistActivityResponseDto] })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 404, description: 'Setlist not found.' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Number of activities to return (default: 20)' })
+  async getActivities(
+    @Param('id') id: string,
+    @Query('limit') limit: string = '20',
+    @Req() req: RequestWithUser
+  ): Promise<SetlistActivityResponseDto[]> {
+    const customerId = req.user.id;
+    return this.setlistService.getActivities(id, customerId, parseInt(limit));
+  }
+
+  @Post(':id/comments')
+  @ApiOperation({ summary: 'Add a comment to a setlist' })
+  @ApiResponse({ status: 201, description: 'The comment has been added.', type: SetlistCommentResponseDto })
+  @ApiResponse({ status: 400, description: 'Bad Request.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 404, description: 'Setlist not found.' })
+  async addComment(
+    @Param('id') id: string,
+    @Body() commentDto: CreateSetlistCommentDto,
+    @Req() req: RequestWithUser
+  ): Promise<SetlistCommentResponseDto> {
+    const customerId = req.user.id;
+    return this.setlistService.addComment(id, customerId, commentDto);
+  }
+
+  @Get(':id/comments')
+  @ApiOperation({ summary: 'Get comments for a setlist' })
+  @ApiResponse({ status: 200, description: 'Return comments.', type: [SetlistCommentResponseDto] })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 404, description: 'Setlist not found.' })
+  async getComments(
+    @Param('id') id: string,
+    @Req() req: RequestWithUser
+  ): Promise<SetlistCommentResponseDto[]> {
+    const customerId = req.user.id;
+    return this.setlistService.getComments(id, customerId);
+  }
+
+  @Post(':id/sync')
+  @ApiOperation({ summary: 'Sync setlist changes for real-time collaboration' })
+  @ApiResponse({ status: 200, description: 'Setlist synchronized successfully.', type: SetlistResponseDto })
+  @ApiResponse({ status: 400, description: 'Bad Request.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 404, description: 'Setlist not found.' })
+  @ApiResponse({ status: 409, description: 'Conflict - setlist has been modified by another user.' })
+  async syncSetlist(
+    @Param('id') id: string,
+    @Body() syncDto: SetlistSyncDto,
+    @Req() req: RequestWithUser
+  ): Promise<SetlistResponseDto> {
+    const customerId = req.user.id;
+    return this.setlistService.syncSetlist(id, customerId, syncDto);
+  }
+
+  @Patch(':id/settings')
+  @ApiOperation({ summary: 'Update setlist collaboration settings' })
+  @ApiResponse({ status: 200, description: 'Settings updated successfully.', type: SetlistResponseDto })
+  @ApiResponse({ status: 400, description: 'Bad Request.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 404, description: 'Setlist not found.' })
+  async updateSettings(
+    @Param('id') id: string,
+    @Body() settingsDto: SetlistSettingsDto,
+    @Req() req: RequestWithUser
+  ): Promise<SetlistResponseDto> {
+    const customerId = req.user.id;
+    return this.setlistService.updateSettings(id, customerId, settingsDto);
+  }
+
+  @Get('shared')
+  @ApiOperation({ summary: 'Get all setlists shared with the current user' })
+  @ApiResponse({ status: 200, description: 'Return shared setlists.', type: [SetlistResponseDto] })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async getSharedSetlists(@Req() req: RequestWithUser): Promise<SetlistResponseDto[]> {
+    const customerId = req.user.id;
+    return this.setlistService.getSharedSetlists(customerId);
+  }
+
+  @Get('share/:shareCode')
+  @ApiOperation({ summary: 'Get setlist by share code' })
+  @ApiResponse({ status: 200, description: 'Return setlist details.', type: SetlistResponseDto })
+  @ApiResponse({ status: 404, description: 'Setlist not found.' })
+  async getByShareCode(
+    @Param('shareCode') shareCode: string
+  ): Promise<SetlistResponseDto> {
+    return this.setlistService.getSetlistByShareCode(shareCode);
+  }
+
+  @Post('join/:shareCode')
+  @ApiOperation({ summary: 'Join setlist by share code' })
+  @ApiResponse({ status: 200, description: 'Successfully joined setlist.', type: SetlistResponseDto })
+  @ApiResponse({ status: 404, description: 'Setlist not found.' })
+  @ApiResponse({ status: 409, description: 'Already a member of this setlist.' })
+  async joinByShareCode(
+    @Param('shareCode') shareCode: string,
+    @Req() req: RequestWithUser
+  ): Promise<SetlistResponseDto> {
+    const customerId = req.user.id;
+    return this.setlistService.joinSetlist(shareCode, customerId);
   }
 }

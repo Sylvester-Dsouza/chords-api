@@ -1,7 +1,20 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger, ConflictException } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { CacheService, CachePrefix, CacheTTL } from './cache.service';
-import { CreateSetlistDto, UpdateSetlistDto, SetlistResponseDto } from '../dto/setlist.dto';
+import {
+  CreateSetlistDto,
+  UpdateSetlistDto,
+  SetlistResponseDto,
+  ShareSetlistDto,
+  UpdateCollaboratorDto,
+  SetlistSettingsDto,
+  CreateSetlistCommentDto,
+  SetlistSyncDto,
+  SetlistCollaboratorResponseDto,
+  SetlistActivityResponseDto,
+  SetlistCommentResponseDto
+} from '../dto/setlist.dto';
+import { randomBytes } from 'crypto';
 
 @Injectable()
 export class SetlistService {
@@ -280,5 +293,730 @@ export class SetlistService {
     });
 
     return deletedSetlist;
+  }
+
+  // ==================== COLLABORATIVE FEATURES ====================
+
+  /**
+   * Generate a unique 4-digit share code for a setlist
+   */
+  private generateShareCode(): string {
+    // Generate a random 4-digit number
+    return Math.floor(1000 + Math.random() * 9000).toString();
+  }
+
+  /**
+   * Log activity for a setlist
+   */
+  private async logActivity(
+    setlistId: string,
+    customerId: string,
+    action: string,
+    details?: any,
+    version?: number
+  ): Promise<void> {
+    try {
+      await this.prisma.setlistActivity.create({
+        data: {
+          setlistId,
+          customerId,
+          action: action as any, // Cast to enum
+          details,
+          version: version || 1,
+        },
+      });
+    } catch (error) {
+      this.logger.error(`Failed to log activity: ${error}`);
+    }
+  }
+
+  /**
+   * Check if user has permission to access setlist
+   */
+  private async checkSetlistAccess(
+    setlistId: string,
+    customerId: string,
+    requiredPermission: 'VIEW' | 'EDIT' | 'ADMIN' = 'VIEW'
+  ): Promise<{ setlist: any; permission: string; isOwner: boolean }> {
+    const setlist = await this.prisma.setlist.findUnique({
+      where: { id: setlistId },
+      include: {
+        collaborators: {
+          where: {
+            customerId,
+            status: 'ACCEPTED',
+          },
+        },
+      },
+    });
+
+    if (!setlist) {
+      throw new NotFoundException(`Setlist with ID ${setlistId} not found`);
+    }
+
+    const isOwner = setlist.customerId === customerId;
+    const collaborator = setlist.collaborators[0];
+
+    if (!isOwner && !collaborator) {
+      throw new ForbiddenException('You do not have permission to access this setlist');
+    }
+
+    const userPermission = isOwner ? 'ADMIN' : collaborator.permission;
+
+    // Check permission hierarchy: VIEW < EDIT < ADMIN
+    const permissionLevels = { VIEW: 1, EDIT: 2, ADMIN: 3 };
+    if (permissionLevels[userPermission] < permissionLevels[requiredPermission]) {
+      throw new ForbiddenException(`You need ${requiredPermission} permission to perform this action`);
+    }
+
+    return { setlist, permission: userPermission, isOwner };
+  }
+
+  /**
+   * Share a setlist with another user
+   */
+  async shareSetlist(
+    setlistId: string,
+    ownerId: string,
+    shareDto: ShareSetlistDto
+  ): Promise<SetlistCollaboratorResponseDto> {
+    // Check if user owns the setlist
+    const { setlist, isOwner } = await this.checkSetlistAccess(setlistId, ownerId, 'ADMIN');
+
+    if (!isOwner) {
+      throw new ForbiddenException('Only the setlist owner can share it');
+    }
+
+    // Find the user to share with
+    const targetUser = await this.prisma.customer.findUnique({
+      where: { email: shareDto.email },
+    });
+
+    if (!targetUser) {
+      throw new NotFoundException(`User with email ${shareDto.email} not found`);
+    }
+
+    if (targetUser.id === ownerId) {
+      throw new BadRequestException('You cannot share a setlist with yourself');
+    }
+
+    // Check if already shared with this user
+    const existingCollaborator = await this.prisma.setlistCollaborator.findUnique({
+      where: {
+        setlistId_customerId: {
+          setlistId,
+          customerId: targetUser.id,
+        },
+      },
+    });
+
+    if (existingCollaborator) {
+      throw new ConflictException('Setlist is already shared with this user');
+    }
+
+    // Generate share code if not exists
+    let shareCode = setlist.shareCode;
+    if (!shareCode) {
+      shareCode = this.generateShareCode();
+      await this.prisma.setlist.update({
+        where: { id: setlistId },
+        data: {
+          shareCode,
+          isShared: true,
+        },
+      });
+    }
+
+    // Create collaborator record
+    const collaborator = await this.prisma.setlistCollaborator.create({
+      data: {
+        setlistId,
+        customerId: targetUser.id,
+        permission: shareDto.permission,
+        invitedBy: ownerId,
+        status: 'PENDING',
+      },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            profilePicture: true,
+          },
+        },
+      },
+    });
+
+    // Log activity
+    await this.logActivity(setlistId, ownerId, 'COLLABORATOR_ADDED', {
+      collaboratorEmail: shareDto.email,
+      permission: shareDto.permission,
+    });
+
+    // TODO: Send email notification to the invited user
+    // await this.emailService.sendSetlistInvitation(targetUser.email, setlist.name, shareCode);
+
+    return {
+      id: collaborator.id,
+      customer: collaborator.customer,
+      permission: collaborator.permission as any,
+      status: collaborator.status as any,
+      invitedAt: collaborator.invitedAt,
+      acceptedAt: collaborator.acceptedAt,
+      lastActiveAt: collaborator.lastActiveAt,
+    };
+  }
+
+  /**
+   * Accept a setlist invitation
+   */
+  async acceptInvitation(shareCode: string, customerId: string): Promise<SetlistResponseDto> {
+    // Find setlist by share code
+    const setlist = await this.prisma.setlist.findUnique({
+      where: { shareCode },
+      include: {
+        collaborators: {
+          where: {
+            customerId,
+            status: 'PENDING',
+          },
+        },
+      },
+    });
+
+    if (!setlist) {
+      throw new NotFoundException('Invalid share code');
+    }
+
+    const collaborator = setlist.collaborators[0];
+    if (!collaborator) {
+      throw new NotFoundException('No pending invitation found for this user');
+    }
+
+    // Accept the invitation
+    await this.prisma.setlistCollaborator.update({
+      where: { id: collaborator.id },
+      data: {
+        status: 'ACCEPTED',
+        acceptedAt: new Date(),
+        lastActiveAt: new Date(),
+      },
+    });
+
+    // Log activity
+    await this.logActivity(setlist.id, customerId, 'COLLABORATOR_ADDED', {
+      action: 'accepted_invitation',
+    });
+
+    // Return the setlist with full details
+    return this.getSetlistWithCollaborativeData(setlist.id, customerId);
+  }
+
+  /**
+   * Get setlist with collaborative data
+   */
+  private async getSetlistWithCollaborativeData(setlistId: string, customerId: string): Promise<SetlistResponseDto> {
+    const { setlist } = await this.checkSetlistAccess(setlistId, customerId);
+
+    const fullSetlist = await this.prisma.setlist.findUnique({
+      where: { id: setlistId },
+      include: {
+        songs: {
+          include: {
+            artist: true,
+          },
+        },
+        collaborators: {
+          where: {
+            status: 'ACCEPTED',
+          },
+          include: {
+            customer: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                profilePicture: true,
+              },
+            },
+          },
+        },
+        activities: {
+          take: 10,
+          orderBy: {
+            timestamp: 'desc',
+          },
+          include: {
+            customer: {
+              select: {
+                id: true,
+                name: true,
+                profilePicture: true,
+              },
+            },
+          },
+        },
+        comments: {
+          where: {
+            parentId: null,
+            isDeleted: false,
+          },
+          include: {
+            customer: {
+              select: {
+                id: true,
+                name: true,
+                profilePicture: true,
+              },
+            },
+            replies: {
+              where: {
+                isDeleted: false,
+              },
+              include: {
+                customer: {
+                  select: {
+                    id: true,
+                    name: true,
+                    profilePicture: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
+      },
+    });
+
+    return {
+      ...fullSetlist,
+      collaborators: fullSetlist.collaborators.map(c => ({
+        id: c.id,
+        customer: {
+          id: c.customer.id,
+          name: c.customer.name,
+          email: c.customer.email,
+          profilePicture: c.customer.profilePicture || undefined,
+        },
+        permission: c.permission as any,
+        status: c.status as any,
+        invitedAt: c.invitedAt,
+        acceptedAt: c.acceptedAt,
+        lastActiveAt: c.lastActiveAt,
+      })),
+      activities: fullSetlist.activities.map(a => ({
+        id: a.id,
+        customer: a.customer,
+        action: a.action,
+        details: a.details,
+        timestamp: a.timestamp,
+        version: a.version,
+      })),
+      comments: fullSetlist.comments.map(c => ({
+        id: c.id,
+        customer: c.customer,
+        text: c.text,
+        parentId: c.parentId,
+        replies: c.replies?.map(r => ({
+          id: r.id,
+          customer: r.customer,
+          text: r.text,
+          parentId: r.parentId,
+          replies: [],
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+        })) || [],
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+      })),
+    } as SetlistResponseDto;
+  }
+
+  /**
+   * Update setlist collaboration settings
+   */
+  async updateSettings(
+    setlistId: string,
+    customerId: string,
+    settingsDto: SetlistSettingsDto
+  ): Promise<SetlistResponseDto> {
+    // Check if user has admin permission
+    const { setlist, isOwner } = await this.checkSetlistAccess(setlistId, customerId, 'ADMIN');
+
+    if (!isOwner) {
+      throw new ForbiddenException('Only the setlist owner can update settings');
+    }
+
+    // Generate share code if enabling sharing and doesn't exist
+    let updateData: any = { ...settingsDto };
+
+    if (settingsDto.isPublic === true || settingsDto.allowEditing === true) {
+      if (!setlist.shareCode) {
+        updateData.shareCode = this.generateShareCode();
+        updateData.isShared = true;
+      }
+    }
+
+    // Update setlist settings
+    const updatedSetlist = await this.prisma.setlist.update({
+      where: { id: setlistId },
+      data: updateData,
+      include: {
+        songs: {
+          include: {
+            artist: true,
+          },
+        },
+        collaborators: {
+          where: {
+            status: 'ACCEPTED',
+          },
+          include: {
+            customer: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                profilePicture: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Log activity
+    await this.logActivity(setlistId, customerId, 'SETTINGS_UPDATED', settingsDto);
+
+    // Invalidate cache
+    const cacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
+    await this.cacheService.delete(cacheKey);
+
+    return {
+      ...updatedSetlist,
+      collaborators: updatedSetlist.collaborators.map(c => ({
+        id: c.id,
+        customer: {
+          id: c.customer.id,
+          name: c.customer.name,
+          email: c.customer.email,
+          profilePicture: c.customer.profilePicture || undefined,
+        },
+        permission: c.permission as any,
+        status: c.status as any,
+        invitedAt: c.invitedAt,
+        acceptedAt: c.acceptedAt,
+        lastActiveAt: c.lastActiveAt,
+      })),
+    } as SetlistResponseDto;
+  }
+
+  /**
+   * Get setlist by share code (for joining)
+   */
+  async getSetlistByShareCode(shareCode: string): Promise<SetlistResponseDto> {
+    const setlist = await this.prisma.setlist.findUnique({
+      where: { shareCode },
+      include: {
+        songs: {
+          include: {
+            artist: true,
+          },
+        },
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!setlist) {
+      throw new NotFoundException('Invalid share code or setlist not found');
+    }
+
+    return setlist as SetlistResponseDto;
+  }
+
+  /**
+   * Join setlist by share code
+   */
+  async joinSetlist(shareCode: string, customerId: string): Promise<SetlistResponseDto> {
+    // Find setlist by share code
+    const setlist = await this.prisma.setlist.findUnique({
+      where: { shareCode },
+    });
+
+    if (!setlist) {
+      throw new NotFoundException('Invalid share code or setlist not found');
+    }
+
+    // Check if user is already a collaborator
+    const existingCollaborator = await this.prisma.setlistCollaborator.findUnique({
+      where: {
+        setlistId_customerId: {
+          setlistId: setlist.id,
+          customerId,
+        },
+      },
+    });
+
+    if (existingCollaborator) {
+      if (existingCollaborator.status === 'ACCEPTED') {
+        throw new ConflictException('You are already a member of this setlist');
+      } else if (existingCollaborator.status === 'PENDING') {
+        // Accept pending invitation
+        await this.prisma.setlistCollaborator.update({
+          where: { id: existingCollaborator.id },
+          data: {
+            status: 'ACCEPTED',
+            acceptedAt: new Date(),
+            lastActiveAt: new Date(),
+          },
+        });
+      }
+    } else {
+      // Create new collaborator with VIEW permission by default
+      await this.prisma.setlistCollaborator.create({
+        data: {
+          setlistId: setlist.id,
+          customerId,
+          permission: 'VIEW',
+          status: 'ACCEPTED',
+          acceptedAt: new Date(),
+          lastActiveAt: new Date(),
+          invitedBy: setlist.customerId, // Set the setlist owner as the inviter
+        },
+      });
+    }
+
+    // Log activity
+    await this.logActivity(setlist.id, customerId, 'COLLABORATOR_JOINED', {
+      joinedViaShareCode: shareCode,
+    });
+
+    // Return the setlist with collaborative data
+    return this.getSetlistWithCollaborativeData(setlist.id, customerId);
+  }
+
+  /**
+   * Get all setlists shared with the current user
+   */
+  async getSharedSetlists(customerId: string): Promise<SetlistResponseDto[]> {
+    const collaborations = await this.prisma.setlistCollaborator.findMany({
+      where: {
+        customerId,
+        status: 'ACCEPTED',
+      },
+      include: {
+        setlist: {
+          include: {
+            songs: {
+              include: {
+                artist: true,
+              },
+            },
+            customer: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        lastActiveAt: 'desc',
+      },
+    });
+
+    return collaborations.map(c => c.setlist as SetlistResponseDto);
+  }
+
+  /**
+   * Get collaborators for a setlist
+   */
+  async getCollaborators(setlistId: string, customerId: string): Promise<SetlistCollaboratorResponseDto[]> {
+    // Check if user has access to view collaborators
+    await this.checkSetlistAccess(setlistId, customerId, 'VIEW');
+
+    const collaborators = await this.prisma.setlistCollaborator.findMany({
+      where: { setlistId },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            profilePicture: true,
+          },
+        },
+      },
+    });
+
+    return collaborators.map(c => ({
+      id: c.id,
+      customer: {
+        id: c.customer.id,
+        name: c.customer.name,
+        email: c.customer.email,
+        profilePicture: c.customer.profilePicture || undefined,
+      },
+      permission: c.permission as any,
+      status: c.status as any,
+      invitedAt: c.invitedAt,
+      acceptedAt: c.acceptedAt,
+      lastActiveAt: c.lastActiveAt,
+    }));
+  }
+
+  /**
+   * Update collaborator permissions
+   */
+  async updateCollaborator(
+    setlistId: string,
+    customerId: string,
+    collaboratorId: string,
+    updateDto: any
+  ): Promise<SetlistCollaboratorResponseDto> {
+    // Check if user has admin permission
+    await this.checkSetlistAccess(setlistId, customerId, 'ADMIN');
+
+    const collaborator = await this.prisma.setlistCollaborator.update({
+      where: { id: collaboratorId },
+      data: updateDto,
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            profilePicture: true,
+          },
+        },
+      },
+    });
+
+    return {
+      id: collaborator.id,
+      customer: {
+        id: collaborator.customer.id,
+        name: collaborator.customer.name,
+        email: collaborator.customer.email,
+        profilePicture: collaborator.customer.profilePicture || undefined,
+      },
+      permission: collaborator.permission as any,
+      status: collaborator.status as any,
+      invitedAt: collaborator.invitedAt,
+      acceptedAt: collaborator.acceptedAt,
+      lastActiveAt: collaborator.lastActiveAt,
+    };
+  }
+
+  /**
+   * Remove collaborator from setlist
+   */
+  async removeCollaborator(setlistId: string, customerId: string, collaboratorId: string): Promise<void> {
+    // Check if user has admin permission
+    await this.checkSetlistAccess(setlistId, customerId, 'ADMIN');
+
+    await this.prisma.setlistCollaborator.delete({
+      where: { id: collaboratorId },
+    });
+  }
+
+  /**
+   * Get setlist activities
+   */
+  async getActivities(setlistId: string, customerId: string, limit: number = 50): Promise<any[]> {
+    // Check if user has access
+    await this.checkSetlistAccess(setlistId, customerId, 'VIEW');
+
+    const activities = await this.prisma.setlistActivity.findMany({
+      where: { setlistId },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { timestamp: 'desc' },
+      take: limit,
+    });
+
+    return activities;
+  }
+
+  /**
+   * Add comment to setlist
+   */
+  async addComment(setlistId: string, customerId: string, commentDto: any): Promise<any> {
+    // Check if user has access
+    await this.checkSetlistAccess(setlistId, customerId, 'VIEW');
+
+    const comment = await this.prisma.setlistComment.create({
+      data: {
+        setlistId,
+        customerId,
+        text: commentDto.text,
+      },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    return comment;
+  }
+
+  /**
+   * Get setlist comments
+   */
+  async getComments(setlistId: string, customerId: string): Promise<any[]> {
+    // Check if user has access
+    await this.checkSetlistAccess(setlistId, customerId, 'VIEW');
+
+    const comments = await this.prisma.setlistComment.findMany({
+      where: { setlistId },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return comments;
+  }
+
+  /**
+   * Sync setlist (placeholder for real-time sync)
+   */
+  async syncSetlist(setlistId: string, customerId: string, syncDto: any): Promise<SetlistResponseDto> {
+    // Check if user has access
+    await this.checkSetlistAccess(setlistId, customerId, 'VIEW');
+
+    // For now, just return the current setlist
+    // In the future, this would handle real-time synchronization
+    return this.getSetlistWithCollaborativeData(setlistId, customerId);
   }
 }

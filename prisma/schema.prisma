@@ -76,6 +76,13 @@ model Customer {
   comments           Comment[]
   commentLikes       CommentLike[]
 
+  // Collaborative setlist relations
+  setlistCollaborations SetlistCollaborator[] // Setlists this customer collaborates on
+  setlistInvitations SetlistCollaborator[] @relation("SetlistInviter") // Invitations sent by this customer
+  setlistActivities  SetlistActivity[] // Activities performed by this customer
+  setlistComments    SetlistComment[] // Comments made by this customer
+  setlistSnapshots   SetlistSnapshot[] // Snapshots created by this customer
+
   // Analytics relations
   sessions           UserSession[]
   pageViews          PageView[]
@@ -457,24 +464,136 @@ model Collection {
   @@map("Collection")
 }
 
-// Customer setlists
+// Customer setlists with collaborative features
 model Setlist {
   id          String   @id @default(uuid())
   name        String
   description String?
-  customerId  String   @map("customerId")
+  customerId  String   @map("customerId") // Owner of the setlist
+
+  // Collaborative features
+  isPublic    Boolean  @default(false) @map("isPublic") // Whether setlist is publicly visible
+  isShared    Boolean  @default(false) @map("isShared") // Whether setlist is shared with others
+  shareCode   String?  @unique @map("shareCode") // Unique code for sharing
+  allowEditing Boolean @default(false) @map("allowEditing") // Whether collaborators can edit
+  allowComments Boolean @default(true) @map("allowComments") // Whether collaborators can comment
+
+  // Offline support
+  version     Int      @default(1) // Version for conflict resolution
+  lastSyncAt  DateTime? @map("lastSyncAt") // Last sync timestamp
+  isDeleted   Boolean  @default(false) @map("isDeleted") // Soft delete for sync
+  deletedAt   DateTime? @map("deletedAt")
+
+  // Metadata
   createdAt   DateTime @default(now()) @map("createdAt")
   updatedAt   DateTime @updatedAt @map("updatedAt")
 
   // Relations
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   songs    Song[] // Direct many-to-many relation
+  collaborators SetlistCollaborator[] // Users who can access this setlist
+  activities SetlistActivity[] // Activity log for changes
+  comments SetlistComment[] // Comments on the setlist
+  snapshots SetlistSnapshot[] // Version snapshots for conflict resolution
 
   // Performance indexes
   @@index([customerId])
   @@index([customerId, updatedAt])
   @@index([name])
+  @@index([shareCode])
+  @@index([isPublic])
+  @@index([isShared])
+  @@index([version])
+  @@index([lastSyncAt])
   @@map("Setlist")
+}
+
+// Setlist collaborators - users who have access to a shared setlist
+model SetlistCollaborator {
+  id          String   @id @default(uuid())
+  setlistId   String   @map("setlistId")
+  customerId  String   @map("customerId")
+  permission  SetlistPermission @default(VIEW) // VIEW, EDIT, ADMIN
+  invitedBy   String   @map("invitedBy") // Customer ID who invited this collaborator
+  invitedAt   DateTime @default(now()) @map("invitedAt")
+  acceptedAt  DateTime? @map("acceptedAt")
+  status      CollaboratorStatus @default(PENDING) // PENDING, ACCEPTED, DECLINED, REMOVED
+  lastActiveAt DateTime? @map("lastActiveAt")
+
+  // Relations
+  setlist    Setlist  @relation(fields: [setlistId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  inviter    Customer @relation("SetlistInviter", fields: [invitedBy], references: [id])
+
+  @@unique([setlistId, customerId]) // One collaborator record per setlist per customer
+  @@index([setlistId])
+  @@index([customerId])
+  @@index([status])
+  @@map("SetlistCollaborator")
+}
+
+// Activity log for setlist changes
+model SetlistActivity {
+  id          String   @id @default(uuid())
+  setlistId   String   @map("setlistId")
+  customerId  String   @map("customerId")
+  action      SetlistAction // CREATED, UPDATED, SONG_ADDED, SONG_REMOVED, SHARED, etc.
+  details     Json?    // Additional details about the action
+  timestamp   DateTime @default(now())
+  version     Int      // Setlist version when this action occurred
+
+  // Relations
+  setlist    Setlist  @relation(fields: [setlistId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([setlistId])
+  @@index([customerId])
+  @@index([timestamp])
+  @@index([action])
+  @@map("SetlistActivity")
+}
+
+// Comments on setlists
+model SetlistComment {
+  id          String   @id @default(uuid())
+  setlistId   String   @map("setlistId")
+  customerId  String   @map("customerId")
+  text        String   @db.Text
+  parentId    String?  @map("parentId") // For replies
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+  isDeleted   Boolean  @default(false) @map("isDeleted")
+  deletedAt   DateTime? @map("deletedAt")
+
+  // Relations
+  setlist    Setlist  @relation(fields: [setlistId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  parent     SetlistComment? @relation("CommentReplies", fields: [parentId], references: [id])
+  replies    SetlistComment[] @relation("CommentReplies")
+
+  @@index([setlistId])
+  @@index([customerId])
+  @@index([parentId])
+  @@map("SetlistComment")
+}
+
+// Version snapshots for conflict resolution
+model SetlistSnapshot {
+  id          String   @id @default(uuid())
+  setlistId   String   @map("setlistId")
+  version     Int
+  data        Json     // Complete setlist data at this version
+  createdBy   String   @map("createdBy")
+  createdAt   DateTime @default(now()) @map("createdAt")
+
+  // Relations
+  setlist    Setlist  @relation(fields: [setlistId], references: [id], onDelete: Cascade)
+  creator    Customer @relation(fields: [createdBy], references: [id])
+
+  @@unique([setlistId, version])
+  @@index([setlistId])
+  @@index([version])
+  @@map("SetlistSnapshot")
 }
 
 // Song Request model
@@ -705,6 +824,37 @@ enum SectionType {
 enum SongStatus {
   DRAFT
   ACTIVE
+}
+
+// Collaborative setlist enums
+enum SetlistPermission {
+  VIEW      // Can view setlist only
+  EDIT      // Can edit setlist content
+  ADMIN     // Can manage collaborators and settings
+}
+
+enum CollaboratorStatus {
+  PENDING   // Invitation sent but not accepted
+  ACCEPTED  // Invitation accepted, active collaborator
+  DECLINED  // Invitation declined
+  REMOVED   // Removed from collaboration
+}
+
+enum SetlistAction {
+  CREATED           // Setlist created
+  UPDATED           // Setlist metadata updated
+  SONG_ADDED        // Song added to setlist
+  SONG_REMOVED      // Song removed from setlist
+  SONG_REORDERED    // Songs reordered
+  SHARED            // Setlist shared with someone
+  UNSHARED          // Setlist sharing revoked
+  COLLABORATOR_ADDED    // New collaborator added
+  COLLABORATOR_REMOVED  // Collaborator removed
+  PERMISSION_CHANGED    // Collaborator permission changed
+  COMMENT_ADDED     // Comment added
+  COMMENT_DELETED   // Comment deleted
+  MADE_PUBLIC       // Setlist made public
+  MADE_PRIVATE      // Setlist made private
 }
 
 // Audit logs for security and tracking

@@ -42,13 +42,35 @@ export class ArtistService {
 
   async findAll(search?: string): Promise<ArtistResponseDto[]> {
     if (search) {
+      const searchTerms = search.trim().split(/\s+/);
+      const searchConditions = [];
+
+      // For each search term, create fuzzy search conditions
+      for (const term of searchTerms) {
+        searchConditions.push({
+          OR: [
+            {
+              name: {
+                contains: term,
+                mode: 'insensitive',
+              },
+            },
+            {
+              bio: {
+                contains: term,
+                mode: 'insensitive',
+              },
+            },
+          ],
+        });
+      }
+
+      const where = searchConditions.length === 1
+        ? searchConditions[0]
+        : { AND: searchConditions };
+
       return this.prisma.artist.findMany({
-        where: {
-          name: {
-            contains: search,
-            mode: 'insensitive',
-          },
-        },
+        where,
         orderBy: {
           name: 'asc',
         },

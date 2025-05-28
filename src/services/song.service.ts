@@ -67,24 +67,46 @@ export class SongService {
 
           const where: any = {};
 
-          // Add search filter
+          // Add search filter with fuzzy search capability
           if (search) {
-            where.OR = [
-              {
-                title: {
-                  contains: search,
-                  mode: 'insensitive',
-                },
-              },
-              {
-                artist: {
-                  name: {
-                    contains: search,
-                    mode: 'insensitive',
+            const searchTerms = search.trim().split(/\s+/);
+            const searchConditions = [];
+
+            // For each search term, create fuzzy search conditions
+            for (const term of searchTerms) {
+              searchConditions.push({
+                OR: [
+                  {
+                    title: {
+                      contains: term,
+                      mode: 'insensitive',
+                    },
                   },
-                },
-              },
-            ];
+                  {
+                    artist: {
+                      name: {
+                        contains: term,
+                        mode: 'insensitive',
+                      },
+                    },
+                  },
+                  // Add chord sheet search for better results
+                  {
+                    chordSheet: {
+                      contains: term,
+                      mode: 'insensitive',
+                    },
+                  },
+                ],
+              });
+            }
+
+            // Combine all search conditions with AND logic for better relevance
+            if (searchConditions.length === 1) {
+              where.OR = searchConditions[0].OR;
+            } else {
+              where.AND = searchConditions;
+            }
           }
 
           // Add artist filter
@@ -120,24 +142,46 @@ export class SongService {
       // Fallback to direct database query if cache fails
       const where: any = {};
 
-      // Add search filter
+      // Add search filter with fuzzy search capability
       if (search) {
-        where.OR = [
-          {
-            title: {
-              contains: search,
-              mode: 'insensitive',
-            },
-          },
-          {
-            artist: {
-              name: {
-                contains: search,
-                mode: 'insensitive',
+        const searchTerms = search.trim().split(/\s+/);
+        const searchConditions = [];
+
+        // For each search term, create fuzzy search conditions
+        for (const term of searchTerms) {
+          searchConditions.push({
+            OR: [
+              {
+                title: {
+                  contains: term,
+                  mode: 'insensitive',
+                },
               },
-            },
-          },
-        ];
+              {
+                artist: {
+                  name: {
+                    contains: term,
+                    mode: 'insensitive',
+                  },
+                },
+              },
+              // Add chord sheet search for better results
+              {
+                chordSheet: {
+                  contains: term,
+                  mode: 'insensitive',
+                },
+              },
+            ],
+          });
+        }
+
+        // Combine all search conditions with AND logic for better relevance
+        if (searchConditions.length === 1) {
+          where.OR = searchConditions[0].OR;
+        } else {
+          where.AND = searchConditions;
+        }
       }
 
       // Add artist filter
@@ -196,24 +240,46 @@ export class SongService {
 
           const where: any = {};
 
-          // Add search filter
+          // Add search filter with fuzzy search capability
           if (search) {
-            where.OR = [
-              {
-                title: {
-                  contains: search,
-                  mode: 'insensitive',
-                },
-              },
-              {
-                artist: {
-                  name: {
-                    contains: search,
-                    mode: 'insensitive',
+            const searchTerms = search.trim().split(/\s+/);
+            const searchConditions = [];
+
+            // For each search term, create fuzzy search conditions
+            for (const term of searchTerms) {
+              searchConditions.push({
+                OR: [
+                  {
+                    title: {
+                      contains: term,
+                      mode: 'insensitive',
+                    },
                   },
-                },
-              },
-            ];
+                  {
+                    artist: {
+                      name: {
+                        contains: term,
+                        mode: 'insensitive',
+                      },
+                    },
+                  },
+                  // Add chord sheet search for better results
+                  {
+                    chordSheet: {
+                      contains: term,
+                      mode: 'insensitive',
+                    },
+                  },
+                ],
+              });
+            }
+
+            // Combine all search conditions with AND logic for better relevance
+            if (searchConditions.length === 1) {
+              where.OR = searchConditions[0].OR;
+            } else {
+              where.AND = searchConditions;
+            }
           }
 
           // Add artist filter
@@ -281,24 +347,46 @@ export class SongService {
       // Fallback to direct database query if cache fails
       const where: any = {};
 
-      // Add search filter
+      // Add search filter with fuzzy search capability
       if (search) {
-        where.OR = [
-          {
-            title: {
-              contains: search,
-              mode: 'insensitive',
-            },
-          },
-          {
-            artist: {
-              name: {
-                contains: search,
-                mode: 'insensitive',
+        const searchTerms = search.trim().split(/\s+/);
+        const searchConditions = [];
+
+        // For each search term, create fuzzy search conditions
+        for (const term of searchTerms) {
+          searchConditions.push({
+            OR: [
+              {
+                title: {
+                  contains: term,
+                  mode: 'insensitive',
+                },
               },
-            },
-          },
-        ];
+              {
+                artist: {
+                  name: {
+                    contains: term,
+                    mode: 'insensitive',
+                  },
+                },
+              },
+              // Add chord sheet search for better results
+              {
+                chordSheet: {
+                  contains: term,
+                  mode: 'insensitive',
+                },
+              },
+            ],
+          });
+        }
+
+        // Combine all search conditions with AND logic for better relevance
+        if (searchConditions.length === 1) {
+          where.OR = searchConditions[0].OR;
+        } else {
+          where.AND = searchConditions;
+        }
       }
 
       // Add artist filter
