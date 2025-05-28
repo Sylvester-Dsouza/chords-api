@@ -96,7 +96,11 @@ export class SetlistService {
   }
 
   async findOne(id: string, customerId: string): Promise<SetlistResponseDto> {
-    const setlist = await this.prisma.setlist.findUnique({
+    // Use collaborative access checking instead of simple ownership check
+    await this.checkSetlistAccess(id, customerId, 'VIEW');
+
+    // Get full setlist data with songs
+    const fullSetlist = await this.prisma.setlist.findUnique({
       where: { id },
       include: {
         songs: {
@@ -107,16 +111,11 @@ export class SetlistService {
       },
     });
 
-    if (!setlist) {
+    if (!fullSetlist) {
       throw new NotFoundException(`Setlist with ID ${id} not found`);
     }
 
-    // Check if the setlist belongs to the customer
-    if (setlist.customerId !== customerId) {
-      throw new ForbiddenException('You do not have permission to access this setlist');
-    }
-
-    return setlist;
+    return fullSetlist;
   }
 
   async update(id: string, customerId: string, updateSetlistDto: UpdateSetlistDto): Promise<SetlistResponseDto> {
@@ -812,7 +811,7 @@ export class SetlistService {
     }
 
     // Log activity
-    await this.logActivity(setlist.id, customerId, 'COLLABORATOR_JOINED', {
+    await this.logActivity(setlist.id, customerId, 'COLLABORATOR_ADDED', {
       joinedViaShareCode: shareCode,
     });
 

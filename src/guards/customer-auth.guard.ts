@@ -1,13 +1,23 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { PrismaService } from '../services/prisma.service';
 import { admin, isFirebaseInitialized } from '../config/firebase.config';
 
 @Injectable()
 export class CustomerAuthGuard implements CanActivate {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly reflector: Reflector
+  ) {}
 
   canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean> {
+    // Check if the endpoint has SkipAuth decorator
+    const skipAuth = this.reflector.get<boolean>('skipAuth', context.getHandler());
+    if (skipAuth) {
+      return true;
+    }
+
     const request = context.switchToHttp().getRequest();
     return this.validateRequest(request);
   }

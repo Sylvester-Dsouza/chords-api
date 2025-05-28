@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, Query, SetMetadata } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { SetlistService } from '../../services/setlist.service';
 import {
@@ -27,6 +27,9 @@ interface RequestWithUser extends Request {
   };
 }
 
+// Decorator to skip authentication for specific endpoints
+export const SkipAuth = () => SetMetadata('skipAuth', true);
+
 @ApiTags('setlists')
 @Controller('setlists')
 @UseGuards(CustomerAuthGuard)
@@ -54,6 +57,26 @@ export class SetlistController {
   async findAll(@Req() req: RequestWithUser): Promise<SetlistResponseDto[]> {
     const customerId = req.user.id;
     return this.setlistService.findAllByCustomer(customerId);
+  }
+
+  @Get('shared')
+  @ApiOperation({ summary: 'Get all setlists shared with the current user' })
+  @ApiResponse({ status: 200, description: 'Return shared setlists.', type: [SetlistResponseDto] })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async getSharedSetlists(@Req() req: RequestWithUser): Promise<SetlistResponseDto[]> {
+    const customerId = req.user.id;
+    return this.setlistService.getSharedSetlists(customerId);
+  }
+
+  @Get('share/:shareCode')
+  @SkipAuth()
+  @ApiOperation({ summary: 'Get setlist by share code (public endpoint)' })
+  @ApiResponse({ status: 200, description: 'Return setlist details.', type: SetlistResponseDto })
+  @ApiResponse({ status: 404, description: 'Setlist not found.' })
+  async getByShareCode(
+    @Param('shareCode') shareCode: string
+  ): Promise<SetlistResponseDto> {
+    return this.setlistService.getSetlistByShareCode(shareCode);
   }
 
   @Get(':id')
@@ -166,7 +189,7 @@ export class SetlistController {
     return this.setlistService.shareSetlist(id, customerId, shareDto);
   }
 
-  @Post('join/:shareCode')
+  @Post('accept/:shareCode')
   @ApiOperation({ summary: 'Accept a setlist invitation using share code' })
   @ApiResponse({ status: 200, description: 'The invitation has been accepted.', type: SetlistResponseDto })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
@@ -302,25 +325,6 @@ export class SetlistController {
   ): Promise<SetlistResponseDto> {
     const customerId = req.user.id;
     return this.setlistService.updateSettings(id, customerId, settingsDto);
-  }
-
-  @Get('shared')
-  @ApiOperation({ summary: 'Get all setlists shared with the current user' })
-  @ApiResponse({ status: 200, description: 'Return shared setlists.', type: [SetlistResponseDto] })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  async getSharedSetlists(@Req() req: RequestWithUser): Promise<SetlistResponseDto[]> {
-    const customerId = req.user.id;
-    return this.setlistService.getSharedSetlists(customerId);
-  }
-
-  @Get('share/:shareCode')
-  @ApiOperation({ summary: 'Get setlist by share code' })
-  @ApiResponse({ status: 200, description: 'Return setlist details.', type: SetlistResponseDto })
-  @ApiResponse({ status: 404, description: 'Setlist not found.' })
-  async getByShareCode(
-    @Param('shareCode') shareCode: string
-  ): Promise<SetlistResponseDto> {
-    return this.setlistService.getSetlistByShareCode(shareCode);
   }
 
   @Post('join/:shareCode')
