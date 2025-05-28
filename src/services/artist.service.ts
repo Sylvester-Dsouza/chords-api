@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { CreateArtistDto, UpdateArtistDto, ArtistResponseDto } from '../dto/artist.dto';
 import { parse as csvParse } from 'csv-parse';
 import { stringify as csvStringify } from 'csv-stringify';
 import { Readable } from 'stream';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ArtistService {
@@ -52,13 +53,13 @@ export class ArtistService {
             {
               name: {
                 contains: term,
-                mode: 'insensitive',
+                mode: Prisma.QueryMode.insensitive,
               },
             },
             {
               bio: {
                 contains: term,
-                mode: 'insensitive',
+                mode: Prisma.QueryMode.insensitive,
               },
             },
           ],

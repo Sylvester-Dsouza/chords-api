@@ -6,15 +6,9 @@ import {
   UpdateSetlistDto,
   SetlistResponseDto,
   ShareSetlistDto,
-  UpdateCollaboratorDto,
   SetlistSettingsDto,
-  CreateSetlistCommentDto,
-  SetlistSyncDto,
   SetlistCollaboratorResponseDto,
-  SetlistActivityResponseDto,
-  SetlistCommentResponseDto
 } from '../dto/setlist.dto';
-import { randomBytes } from 'crypto';
 
 @Injectable()
 export class SetlistService {
@@ -459,7 +453,12 @@ export class SetlistService {
 
     return {
       id: collaborator.id,
-      customer: collaborator.customer,
+      customer: {
+        id: collaborator.customer.id,
+        name: collaborator.customer.name,
+        email: collaborator.customer.email,
+        profilePicture: collaborator.customer.profilePicture || undefined,
+      },
       permission: collaborator.permission as any,
       status: collaborator.status as any,
       invitedAt: collaborator.invitedAt,
@@ -517,7 +516,7 @@ export class SetlistService {
    * Get setlist with collaborative data
    */
   private async getSetlistWithCollaborativeData(setlistId: string, customerId: string): Promise<SetlistResponseDto> {
-    const { setlist } = await this.checkSetlistAccess(setlistId, customerId);
+    await this.checkSetlistAccess(setlistId, customerId);
 
     const fullSetlist = await this.prisma.setlist.findUnique({
       where: { id: setlistId },
@@ -592,6 +591,10 @@ export class SetlistService {
       },
     });
 
+    if (!fullSetlist) {
+      throw new NotFoundException('Setlist not found');
+    }
+
     return {
       ...fullSetlist,
       collaborators: fullSetlist.collaborators.map(c => ({
@@ -610,7 +613,11 @@ export class SetlistService {
       })),
       activities: fullSetlist.activities.map(a => ({
         id: a.id,
-        customer: a.customer,
+        customer: {
+          id: a.customer.id,
+          name: a.customer.name,
+          profilePicture: a.customer.profilePicture || undefined,
+        },
         action: a.action,
         details: a.details,
         timestamp: a.timestamp,
@@ -618,12 +625,20 @@ export class SetlistService {
       })),
       comments: fullSetlist.comments.map(c => ({
         id: c.id,
-        customer: c.customer,
+        customer: {
+          id: c.customer.id,
+          name: c.customer.name,
+          profilePicture: c.customer.profilePicture || undefined,
+        },
         text: c.text,
         parentId: c.parentId,
         replies: c.replies?.map(r => ({
           id: r.id,
-          customer: r.customer,
+          customer: {
+            id: r.customer.id,
+            name: r.customer.name,
+            profilePicture: r.customer.profilePicture || undefined,
+          },
           text: r.text,
           parentId: r.parentId,
           replies: [],
@@ -1011,7 +1026,7 @@ export class SetlistService {
   /**
    * Sync setlist (placeholder for real-time sync)
    */
-  async syncSetlist(setlistId: string, customerId: string, syncDto: any): Promise<SetlistResponseDto> {
+  async syncSetlist(setlistId: string, customerId: string, _syncDto: any): Promise<SetlistResponseDto> {
     // Check if user has access
     await this.checkSetlistAccess(setlistId, customerId, 'VIEW');
 
