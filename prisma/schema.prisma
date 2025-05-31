@@ -75,6 +75,8 @@ model Customer {
   notificationHistory NotificationHistory[]
   comments           Comment[]
   commentLikes       CommentLike[]
+  courseEnrollments  CourseEnrollment[]
+  lessonProgress     LessonProgress[]
 
   // Collaborative setlist relations
   setlistCollaborations SetlistCollaborator[] // Setlists this customer collaborates on
@@ -264,6 +266,7 @@ model Song {
   songTags    SongTag[]
   comments    Comment[]
   ratings     SongRating[]
+  lessons     Lesson[] // Lessons that use this song for practice
 
   // Performance indexes
   @@index([title])
@@ -849,12 +852,14 @@ enum SetlistAction {
   SHARED            // Setlist shared with someone
   UNSHARED          // Setlist sharing revoked
   COLLABORATOR_ADDED    // New collaborator added
+  COLLABORATOR_JOINED   // Collaborator joined via share code
   COLLABORATOR_REMOVED  // Collaborator removed
   PERMISSION_CHANGED    // Collaborator permission changed
   COMMENT_ADDED     // Comment added
   COMMENT_DELETED   // Comment deleted
   MADE_PUBLIC       // Setlist made public
   MADE_PRIVATE      // Setlist made private
+  SETTINGS_UPDATED  // Setlist settings updated
 }
 
 // Audit logs for security and tracking
@@ -967,6 +972,155 @@ model PageView {
   @@index([page])
   @@index([timestamp])
   @@map("PageView")
+}
+
+// Training Courses (Generic for all course types)
+model Course {
+  id          String   @id @default(uuid())
+  title       String
+  subtitle    String?
+  description String   @db.Text
+  level       String   // Beginner, Intermediate, Advanced
+  imageUrl    String?  // Course cover image
+
+  // Course type (, guitar, piano, music production, etc.)
+  courseType  String   @default("") @map("courseType") // , guitar, piano, music_production, etc.
+
+  // Course structure
+  totalDays     Int      @default(0) @map("totalDays")
+  totalLessons  Int      @default(0) @map("totalLessons")
+  estimatedHours Int     @default(0) @map("estimatedHours")
+
+  // Course settings
+  isPublished Boolean  @default(false) @map("isPublished")
+  isFeatured  Boolean  @default(false) @map("isFeatured")
+  isActive    Boolean  @default(true) @map("isActive")
+  price       Float?   // Course price (null for free courses)
+
+  // Analytics
+  viewCount     Int       @default(0) @map("viewCount")
+  enrollmentCount Int     @default(0) @map("enrollmentCount")
+  completionRate Float   @default(0) @map("completionRate")
+  averageRating Float    @default(0) @map("averageRating")
+  ratingCount   Int      @default(0) @map("ratingCount")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("createdAt")
+  updatedAt DateTime @updatedAt @map("updatedAt")
+
+  // Relations
+  lessons     Lesson[]
+  enrollments CourseEnrollment[]
+
+  @@map("Course")
+}
+
+// Individual lessons within a course
+model Lesson {
+  id          String   @id @default(uuid())
+  courseId    String   @map("courseId")
+
+  // Lesson content
+  title       String
+  description String   @db.Text
+  dayNumber   Int      @map("dayNumber") // Day 1, 2, 3, etc.
+  duration    Int      // Duration in minutes
+
+  // Practice song for the lesson
+  practiceSongId String? @map("practiceSongId")
+  practiceSongTitle String? @map("practiceSongTitle") // Fallback if song not in system
+
+  // Lesson content
+  instructions String  @db.Text // Detailed lesson instructions
+  videoUrl     String? // Optional video lesson URL
+  audioUrl     String? // Optional audio guide URL
+
+  // Lesson settings
+  isPublished Boolean @default(false) @map("isPublished")
+  isActive    Boolean @default(true) @map("isActive")
+
+  // Lesson order and prerequisites
+  sortOrder   Int     @default(0) @map("sortOrder")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("createdAt")
+  updatedAt DateTime @updatedAt @map("updatedAt")
+
+  // Relations
+  course          Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  practiceSong    Song?  @relation(fields: [practiceSongId], references: [id], onDelete: SetNull)
+  lessonProgress  LessonProgress[]
+
+  @@index([courseId])
+  @@index([dayNumber])
+  @@map("Lesson")
+}
+
+// Customer enrollment in courses
+model CourseEnrollment {
+  id         String   @id @default(uuid())
+  customerId String   @map("customerId")
+  courseId   String   @map("courseId")
+
+  // Enrollment status
+  status        String   @default("ACTIVE") // ACTIVE, PAUSED, COMPLETED, CANCELLED
+  currentDay    Int      @default(1) @map("currentDay")
+  progress      Float    @default(0) // Progress percentage (0-100)
+
+  // Enrollment dates
+  enrolledAt    DateTime @default(now()) @map("enrolledAt")
+  startedAt     DateTime? @map("startedAt") // When they started the first lesson
+  completedAt   DateTime? @map("completedAt") // When they completed the course
+  lastAccessedAt DateTime? @map("lastAccessedAt")
+
+  // Course rating by customer
+  rating        Int?     // 1-5 stars
+  review        String?  @db.Text
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("createdAt")
+  updatedAt DateTime @updatedAt @map("updatedAt")
+
+  // Relations
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, courseId])
+  @@index([customerId])
+  @@index([courseId])
+  @@index([status])
+  @@map("CourseEnrollment")
+}
+
+// Individual lesson progress tracking
+model LessonProgress {
+  id         String   @id @default(uuid())
+  customerId String   @map("customerId")
+  lessonId   String   @map("lessonId")
+
+  // Progress tracking
+  status        String   @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETED
+  completedAt   DateTime? @map("completedAt")
+  timeSpent     Int      @default(0) @map("timeSpent") // Time spent in minutes
+  attempts      Int      @default(0) // Number of times accessed
+
+  // Lesson feedback
+  rating        Int?     // 1-5 stars for this specific lesson
+  notes         String?  @db.Text // Customer's personal notes
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("createdAt")
+  updatedAt DateTime @updatedAt @map("updatedAt")
+
+  // Relations
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  lesson   Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, lessonId])
+  @@index([customerId])
+  @@index([lessonId])
+  @@index([status])
+  @@map("LessonProgress")
 }
 
 // Content views for analytics

@@ -81,7 +81,8 @@ async function bootstrap() {
       '/subscriptions*',
       '/song-requests*',
       '/notifications*',
-      '/song-ratings*'  // Add song-ratings to the excluded routes
+      '/song-ratings*',  // Add song-ratings to the excluded routes
+      '/courses*'  // Add courses to the excluded routes
     ],
   });
 

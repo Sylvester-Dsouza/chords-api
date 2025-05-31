@@ -811,7 +811,7 @@ export class SetlistService {
     }
 
     // Log activity
-    await this.logActivity(setlist.id, customerId, 'COLLABORATOR_ADDED', {
+    await this.logActivity(setlist.id, customerId, 'COLLABORATOR_JOINED', {
       joinedViaShareCode: shareCode,
     });
 

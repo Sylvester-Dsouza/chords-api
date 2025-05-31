@@ -38,6 +38,7 @@ import { NotificationModule } from './modules/notification.module';
 import { CommentModule } from './modules/comment.module';
 import { SongRatingModule } from './modules/song-rating.module';
 import { HomeSectionModule } from './modules/home-section.module';
+import { CoursesModule } from './modules/courses.module';
 import { HealthController } from './controllers/health/health.controller';
 
 import { SetlistService } from './services/setlist.service';
@@ -76,7 +77,8 @@ import { BannerItemService } from './services/banner-item.service';
     NotificationModule,
     CommentModule,
     SongRatingModule,
-    HomeSectionModule
+    HomeSectionModule,
+    CoursesModule
   ],
   controllers: [
     AppController,

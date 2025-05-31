@@ -96,11 +96,12 @@ export class UserAuthGuard implements CanActivate {
           throw new UnauthorizedException('Account is inactive');
         }
 
-        // Check if user has admin role
+        // Check if user has valid role (allow all authenticated users)
         if (
           user.role !== UserRole.SUPER_ADMIN &&
           user.role !== UserRole.ADMIN &&
-          user.role !== UserRole.CONTRIBUTOR
+          user.role !== UserRole.CONTRIBUTOR &&
+          user.role !== UserRole.EDITOR
         ) {
           console.warn(`UserAuthGuard - User ${user.id} with role ${user.role} attempted to access admin endpoint`);
           throw new UnauthorizedException('Insufficient permissions');
