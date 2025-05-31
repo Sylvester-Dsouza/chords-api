@@ -5,6 +5,7 @@ import { CreateSongDto, UpdateSongDto, SongResponseDto } from '../../dto/song.dt
 import { UserAuthGuard } from '../../guards/user-auth.guard';
 import { RolesGuard } from '../../guards/roles.guard';
 import { Roles } from '../../decorators/roles.decorator';
+import { Public } from '../../decorators/public.decorator';
 import { UserRole } from '@prisma/client';
 import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -28,6 +29,7 @@ export class SongController {
   }
 
   @Get()
+  @Public()
   @ApiOperation({ summary: 'Get all songs' })
   @ApiResponse({ status: 200, description: 'Return all songs.', type: [SongResponseDto] })
   async findAll(
@@ -38,7 +40,41 @@ export class SongController {
     return this.songService.findAll(search, artistId, tags);
   }
 
+  @Get('debug')
+  @Public()
+  @ApiOperation({ summary: 'Debug endpoint to check songs in database' })
+  @ApiResponse({ status: 200, description: 'Return debug information about songs.' })
+  async debug(): Promise<any> {
+    const totalSongs = await this.songService['prisma'].song.count();
+    const activeSongs = await this.songService['prisma'].song.count({ where: { status: 'ACTIVE' } });
+    const draftSongs = await this.songService['prisma'].song.count({ where: { status: 'DRAFT' } });
+    const totalArtists = await this.songService['prisma'].artist.count();
+
+    const sampleSongs = await this.songService['prisma'].song.findMany({
+      take: 3,
+      include: { artist: true },
+    });
+
+    return {
+      message: 'Songs API Debug Info',
+      counts: {
+        totalSongs,
+        activeSongs,
+        draftSongs,
+        totalArtists,
+      },
+      sampleSongs: sampleSongs.map(song => ({
+        id: song.id,
+        title: song.title,
+        artist: song.artist?.name,
+        status: song.status,
+      })),
+      timestamp: new Date().toISOString(),
+    };
+  }
+
   @Get('paginated')
+  @Public()
   @ApiOperation({ summary: 'Get songs with pagination' })
   @ApiResponse({ status: 200, description: 'Return paginated songs.' })
   async findAllPaginated(
@@ -64,7 +100,24 @@ export class SongController {
     });
   }
 
+  @Get('export/csv')
+  @UseGuards(UserAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export all songs to CSV' })
+  @ApiResponse({ status: 200, description: 'Return CSV file with all songs.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  async exportToCsv(@Res() res: Response): Promise<void> {
+    const csv = await this.songService.exportToCsv();
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=songs.csv');
+    res.send(csv);
+  }
+
   @Get(':id')
+  @Public()
   @ApiOperation({ summary: 'Get a song by ID' })
   @ApiResponse({ status: 200, description: 'Return the song.', type: SongResponseDto })
   @ApiResponse({ status: 404, description: 'Song not found.' })
@@ -100,22 +153,6 @@ export class SongController {
   @ApiResponse({ status: 404, description: 'Song not found.' })
   async remove(@Param('id') id: string): Promise<SongResponseDto> {
     return this.songService.remove(id);
-  }
-
-  @Get('export/csv')
-  @UseGuards(UserAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Export all songs to CSV' })
-  @ApiResponse({ status: 200, description: 'Return CSV file with all songs.' })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 403, description: 'Forbidden.' })
-  async exportToCsv(@Res() res: Response): Promise<void> {
-    const csv = await this.songService.exportToCsv();
-
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=songs.csv');
-    res.send(csv);
   }
 
   @Post('import/csv')

@@ -5,6 +5,7 @@ import { CreateArtistDto, UpdateArtistDto, ArtistResponseDto } from '../../dto/a
 import { UserAuthGuard } from '../../guards/user-auth.guard';
 import { RolesGuard } from '../../guards/roles.guard';
 import { Roles } from '../../decorators/roles.decorator';
+import { Public } from '../../decorators/public.decorator';
 import { UserRole } from '@prisma/client';
 import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -28,6 +29,7 @@ export class ArtistController {
   }
 
   @Get()
+  @Public()
   @ApiOperation({ summary: 'Get all artists' })
   @ApiResponse({ status: 200, description: 'Return all artists.', type: [ArtistResponseDto] })
   async findAll(@Query('search') search?: string): Promise<ArtistResponseDto[]> {
@@ -35,6 +37,7 @@ export class ArtistController {
   }
 
   @Get(':id')
+  @Public()
   @ApiOperation({ summary: 'Get an artist by ID' })
   @ApiResponse({ status: 200, description: 'Return the artist.', type: ArtistResponseDto })
   @ApiResponse({ status: 404, description: 'Artist not found.' })
