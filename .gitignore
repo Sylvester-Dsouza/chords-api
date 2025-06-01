@@ -39,9 +39,13 @@ lerna-debug.log*
 .env.*
 *.env
 
-# Firebase
+# Firebase - NEVER commit service account files!
 firebase-service-account.json
 *firebase-service-account*.json
+*service-account*.json
+*.serviceaccount.json
+# Keep the example file for reference
+!firebase-service-account.example.json
 
 # Build
 /dist
