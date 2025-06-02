@@ -39,6 +39,7 @@ import { CommentModule } from './modules/comment.module';
 import { SongRatingModule } from './modules/song-rating.module';
 import { HomeSectionModule } from './modules/home-section.module';
 import { CoursesModule } from './modules/courses.module';
+import { VocalModule } from './modules/vocal.module';
 import { HealthController } from './controllers/health/health.controller';
 
 import { SetlistService } from './services/setlist.service';
@@ -78,7 +79,8 @@ import { BannerItemService } from './services/banner-item.service';
     CommentModule,
     SongRatingModule,
     HomeSectionModule,
-    CoursesModule
+    CoursesModule,
+    VocalModule
   ],
   controllers: [
     AppController,

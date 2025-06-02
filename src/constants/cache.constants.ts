@@ -29,4 +29,6 @@ export enum CachePrefix {
   LIKED_SONGS = 'liked_songs',
   BANNER = 'banner',
   BANNERS = 'banners',
+  VOCAL_CATEGORIES = 'vocal_categories',
+  VOCAL_ITEMS = 'vocal_items',
 }

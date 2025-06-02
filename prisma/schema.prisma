@@ -862,6 +862,11 @@ enum SetlistAction {
   SETTINGS_UPDATED  // Setlist settings updated
 }
 
+enum VocalType {
+  WARMUP
+  EXERCISE
+}
+
 // Audit logs for security and tracking
 model AuditLog {
   id          String           @id @default(uuid())
@@ -1160,4 +1165,46 @@ model DailyMetrics {
 
   @@index([date])
   @@map("DailyMetrics")
+}
+
+// Vocal Categories (Warmups and Exercises)
+model VocalCategory {
+  id          String     @id @default(uuid())
+  name        String     // e.g., "Stage Warmups", "5min Warmups", "High Pitch Exercises"
+  type        VocalType  // WARMUP or EXERCISE
+  description String?    @db.Text
+  displayOrder Int       @default(0) @map("displayOrder")
+  isActive    Boolean    @default(true) @map("isActive")
+  createdAt   DateTime   @default(now()) @map("createdAt")
+  updatedAt   DateTime   @updatedAt @map("updatedAt")
+
+  // Relations
+  items       VocalItem[]
+
+  @@index([type])
+  @@index([displayOrder])
+  @@index([isActive])
+  @@map("VocalCategory")
+}
+
+// Individual Vocal Items (Warmups/Exercises)
+model VocalItem {
+  id              String       @id @default(uuid())
+  categoryId      String       @map("categoryId")
+  name            String       // Individual warmup/exercise name
+  audioFileUrl    String       @map("audioFileUrl") // Supabase storage URL
+  durationSeconds Int          @map("durationSeconds")
+  fileSizeBytes   BigInt       @map("fileSizeBytes") // For download progress tracking
+  displayOrder    Int          @default(0) @map("displayOrder")
+  isActive        Boolean      @default(true) @map("isActive")
+  createdAt       DateTime     @default(now()) @map("createdAt")
+  updatedAt       DateTime     @updatedAt @map("updatedAt")
+
+  // Relations
+  category        VocalCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId])
+  @@index([displayOrder])
+  @@index([isActive])
+  @@map("VocalItem")
 }

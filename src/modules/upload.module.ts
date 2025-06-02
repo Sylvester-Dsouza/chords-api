@@ -9,7 +9,7 @@ import { SupabaseModule } from './supabase.module';
     SupabaseModule,
     MulterModule.register({
       limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB
+        fileSize: 50 * 1024 * 1024, // 50MB to support audio files
       },
     }),
   ],

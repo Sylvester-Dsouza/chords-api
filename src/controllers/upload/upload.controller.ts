@@ -47,17 +47,41 @@ export class UploadController {
     this.logger.log(`Uploading file to folder: ${folder}`);
 
     // Validate folder
-    if (!['song-cover', 'artist-cover', 'collection-cover', 'banner-image'].includes(folder)) {
-      throw new BadRequestException('Invalid folder. Must be one of: song-cover, artist-cover, collection-cover, banner-image');
+    const allowedFolders = ['song-cover', 'artist-cover', 'collection-cover', 'banner-image', 'vocals'];
+    if (!allowedFolders.includes(folder)) {
+      throw new BadRequestException(`Invalid folder. Must be one of: ${allowedFolders.join(', ')}`);
     }
 
-    // Validate file type
-    if (!file.mimetype.startsWith('image/')) {
-      throw new BadRequestException('Only image files are allowed');
+    // Validate file type based on folder
+    if (folder === 'vocals') {
+      // Audio files for vocals folder
+      const allowedAudioTypes = [
+        'audio/mpeg',
+        'audio/mp3',
+        'audio/wav',
+        'audio/ogg',
+        'audio/aac',
+        'audio/m4a',
+        'audio/webm'
+      ];
+      if (!allowedAudioTypes.includes(file.mimetype)) {
+        throw new BadRequestException(`Only audio files are allowed for vocals folder. Allowed types: ${allowedAudioTypes.join(', ')}`);
+      }
+    } else {
+      // Image files for other folders
+      if (!file.mimetype.startsWith('image/')) {
+        throw new BadRequestException('Only image files are allowed');
+      }
     }
 
-    // Validate file size (5MB max)
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    // Validate file size based on folder
+    let maxSize: number;
+    if (folder === 'vocals') {
+      maxSize = 50 * 1024 * 1024; // 50MB for audio files
+    } else {
+      maxSize = 5 * 1024 * 1024; // 5MB for image files
+    }
+
     if (file.size > maxSize) {
       throw new BadRequestException(`File size exceeds the limit of ${maxSize / (1024 * 1024)}MB`);
     }
