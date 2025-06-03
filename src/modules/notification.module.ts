@@ -10,4 +10,8 @@ import { PrismaService } from '../services/prisma.service';
   providers: [NotificationService, PrismaService],
   exports: [NotificationService],
 })
-export class NotificationModule {}
+export class NotificationModule {
+  constructor() {
+    console.log('🔔 NotificationModule loaded');
+  }
+}

@@ -104,7 +104,7 @@ import { BannerItemService } from './services/banner-item.service';
     LikedSongService,
     SongRequestService,
     NotificationHistoryService,
-    NotificationService,
+    // NotificationService removed - provided by NotificationModule
     CommentService,
     SongRatingService,
     HomeSectionService,

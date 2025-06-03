@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Post } from '@nestjs/common';
 import { AppService } from './app.service';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
@@ -12,5 +12,13 @@ export class AppController {
   @ApiResponse({ status: 200, description: 'Returns a hello message' })
   getHello(): string {
     return this.appService.getHello();
+  }
+
+  @Post('test-notifications')
+  @ApiOperation({ summary: 'Test notifications endpoint' })
+  @ApiResponse({ status: 200, description: 'Test successful' })
+  testNotifications(): any {
+    console.log('🔔 Test notifications endpoint called');
+    return { message: 'Test notifications endpoint working', timestamp: new Date().toISOString() };
   }
 }

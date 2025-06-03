@@ -37,7 +37,9 @@ interface RequestWithUser extends Request {
 @ApiTags('notifications')
 @Controller('notifications')
 export class NotificationController {
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(private readonly notificationService: NotificationService) {
+    console.log('🔔 NotificationController initialized');
+  }
 
   @Post()
   @UseGuards(UserAuthGuard, RolesGuard)
@@ -137,6 +139,14 @@ export class NotificationController {
     );
   }
 
+  @Get('test')
+  @ApiOperation({ summary: 'Test endpoint to verify notifications controller is working' })
+  @ApiResponse({ status: 200, description: 'Test successful' })
+  async test(): Promise<any> {
+    console.log('🔔 Test endpoint called');
+    return { message: 'Notifications controller is working', timestamp: new Date().toISOString() };
+  }
+
   @Post('device-token')
   @UseGuards(CustomerAuthGuard)
   @ApiBearerAuth()
@@ -146,6 +156,7 @@ export class NotificationController {
     @Body() deviceTokenDto: DeviceTokenDto,
     @Req() req: RequestWithUser,
   ): Promise<any> {
+    console.log('🔔 Device token endpoint called:', deviceTokenDto);
     return this.notificationService.registerDeviceToken(req.user.id, deviceTokenDto);
   }
 

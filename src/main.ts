@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, RequestMethod } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { initializeFirebase } from './config/firebase.config';
 import { configureMiddleware } from './config/middleware.config';
@@ -65,24 +65,26 @@ async function bootstrap() {
   app.setGlobalPrefix('api', {
     exclude: [
       // Add routes that should be accessible without the 'api' prefix
-      '/songs*',
-      '/artists*',
-      '/collections*',
-      '/tags*',
-      '/comments*',
-      '/auth*',
-      '/admin*',
-      '/customers*',
-      '/users*',
-      '/chord-diagrams*',
-      '/upload*',
-      '/setlists*',
-      '/liked-songs*',
-      '/subscriptions*',
-      '/song-requests*',
-      '/notifications*',
-      '/song-ratings*',  // Add song-ratings to the excluded routes
-      '/courses*'  // Add courses to the excluded routes
+      { path: 'songs*', method: RequestMethod.ALL },
+      { path: 'artists*', method: RequestMethod.ALL },
+      { path: 'collections*', method: RequestMethod.ALL },
+      { path: 'tags*', method: RequestMethod.ALL },
+      { path: 'comments*', method: RequestMethod.ALL },
+      { path: 'auth*', method: RequestMethod.ALL },
+      { path: 'admin*', method: RequestMethod.ALL },
+      { path: 'customers*', method: RequestMethod.ALL },
+      { path: 'users*', method: RequestMethod.ALL },
+      { path: 'chord-diagrams*', method: RequestMethod.ALL },
+      { path: 'upload*', method: RequestMethod.ALL },
+      { path: 'setlists*', method: RequestMethod.ALL },
+      { path: 'liked-songs*', method: RequestMethod.ALL },
+      { path: 'subscriptions*', method: RequestMethod.ALL },
+      { path: 'song-requests*', method: RequestMethod.ALL },
+      // { path: 'notifications*', method: RequestMethod.ALL }, // Removed - notifications should use /api prefix
+      { path: 'song-ratings*', method: RequestMethod.ALL },
+      { path: 'courses*', method: RequestMethod.ALL },
+      // Also exclude root route
+      { path: '', method: RequestMethod.GET }
     ],
   });
 
