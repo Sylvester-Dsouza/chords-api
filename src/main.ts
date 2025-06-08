@@ -36,8 +36,13 @@ async function bootstrap() {
       ],
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       credentials: true,
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+      exposedHeaders: ['Authorization'],
+      maxAge: 7200 // 2 hours
     });
+    console.info('CORS enabled for specific origins (production mode)');
+    console.info('Allowed origins:', ['https://chords-admin.vercel.app', 'https://admin.yourapp.com', 'https://app.yourapp.com']);
+
   } else {
     // In development, allow all origins
     app.enableCors({

@@ -210,6 +210,38 @@ export class SongService {
     }
   }
 
+  // Incremental sync method for mobile app
+  async findAllSince(since?: string, limit: number = 100): Promise<SongResponseDto[]> {
+    try {
+      const where: any = {};
+
+      // If since timestamp is provided, only get songs updated after that time
+      if (since) {
+        where.updatedAt = {
+          gt: new Date(since)
+        };
+      }
+
+      const songs = await this.prisma.song.findMany({
+        where,
+        include: {
+          artist: true,
+          language: true,
+        },
+        orderBy: {
+          updatedAt: 'desc', // Most recently updated first
+        },
+        take: limit,
+      });
+
+      this.logger.debug(`Found ${songs.length} songs ${since ? `updated since ${since}` : 'total'}`);
+      return songs;
+    } catch (error: any) {
+      this.logger.error(`Error fetching songs since ${since}: ${error.message}`);
+      throw error;
+    }
+  }
+
   // New paginated method for better performance
   async findAllPaginated(filters: {
     search?: string;

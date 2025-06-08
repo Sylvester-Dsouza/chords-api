@@ -121,10 +121,11 @@ export class HomeSectionController {
   }
 
   @Get('app/content')
-  @ApiOperation({ summary: 'Get home sections for the mobile app' })
+  @ApiOperation({ summary: 'Get home sections for the mobile app with incremental sync support' })
+  @ApiQuery({ name: 'since', required: false, description: 'ISO timestamp to get only updated sections since this time' })
   @ApiResponse({ status: 200, description: 'Return home sections with content for the app.' })
-  async getHomeSectionsForApp(): Promise<any[]> {
-    return this.homeSectionService.getHomeSectionsForApp();
+  async getHomeSectionsForApp(@Query('since') since?: string): Promise<any[]> {
+    return this.homeSectionService.getHomeSectionsForApp(since);
   }
 
   @Get('app/section/:id/items')
@@ -134,6 +135,14 @@ export class HomeSectionController {
   @ApiResponse({ status: 404, description: 'Section not found.' })
   async getSectionItems(@Param('id') id: string): Promise<any[]> {
     return this.homeSectionService.getSectionItemsForApp(id);
+  }
+
+  @Get('debug/collection/:name')
+  @Public()
+  @ApiOperation({ summary: 'Debug collection visibility in home sections' })
+  @ApiResponse({ status: 200, description: 'Debug information retrieved successfully.' })
+  async debugCollectionVisibility(@Param('name') name: string): Promise<any> {
+    return this.homeSectionService.debugCollectionVisibility(name);
   }
 
   @Get('test-create')

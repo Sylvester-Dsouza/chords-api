@@ -51,12 +51,19 @@ export class SetlistController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all setlists for the current user' })
+  @ApiOperation({ summary: 'Get all setlists for the current user with incremental sync support' })
+  @ApiQuery({ name: 'since', required: false, description: 'ISO timestamp to get only updated setlists since this time' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Maximum number of setlists to return' })
   @ApiResponse({ status: 200, description: 'Return all setlists.', type: [SetlistResponseDto] })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  async findAll(@Req() req: RequestWithUser): Promise<SetlistResponseDto[]> {
+  async findAll(
+    @Req() req: RequestWithUser,
+    @Query('since') since?: string,
+    @Query('limit') limit?: string,
+  ): Promise<SetlistResponseDto[]> {
     const customerId = req.user.id;
-    return this.setlistService.findAllByCustomer(customerId);
+    const limitNum = limit ? parseInt(limit, 10) : undefined;
+    return this.setlistService.findAllByCustomer(customerId, since, limitNum);
   }
 
   @Get('shared')

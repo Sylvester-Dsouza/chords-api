@@ -218,8 +218,31 @@ export class HomeSectionService {
   }
 
   // Get home sections for the mobile app (only active sections)
-  async getHomeSectionsForApp(): Promise<any[]> {
-    const sections = await this.findAll(false);
+  async getHomeSectionsForApp(since?: string): Promise<any[]> {
+    let sections;
+
+    if (since) {
+      // Get only sections updated since the given timestamp
+      sections = await this.prisma.homeSection.findMany({
+        where: {
+          isActive: true,
+          updatedAt: {
+            gt: new Date(since)
+          }
+        },
+        orderBy: {
+          order: 'asc'
+        },
+        include: {
+          bannerItems: true
+        }
+      });
+
+      console.log(`Found ${sections.length} home sections updated since ${since}`);
+    } else {
+      // Get all active sections
+      sections = await this.findAll(false);
+    }
 
     // Process each section to include the actual content items
     const processedSections = await Promise.all(
@@ -258,7 +281,11 @@ export class HomeSectionService {
           id: section.id,
           title: section.title,
           type: section.type,
-          items
+          isActive: section.isActive,
+          itemCount: section.itemCount,
+          filterType: section.filterType,
+          items,
+          updatedAt: section.updatedAt
         };
       })
     );
@@ -274,7 +301,9 @@ export class HomeSectionService {
       // Use specific collection IDs if provided
       collections = await this.prisma.collection.findMany({
         where: {
-          id: { in: section.itemIds }
+          id: { in: section.itemIds },
+          isActive: true,  // Ensure collection is active
+          isPublic: true   // Ensure collection is public
         },
         take: section.itemCount,
         include: {
@@ -292,15 +321,16 @@ export class HomeSectionService {
       });
     } else {
       // Apply filter based on filterType
-      let where: any = {};
+      let where: any = {
+        isActive: true,  // Always ensure collection is active
+        isPublic: true   // Always ensure collection is public
+      };
 
       if (section.filterType === 'seasonal') {
-        where = {
-          collectionTags: {
-            some: {
-              tag: {
-                name: { contains: 'seasonal', mode: 'insensitive' }
-              }
+        where.collectionTags = {
+          some: {
+            tag: {
+              name: { contains: 'seasonal', mode: 'insensitive' }
             }
           }
         };
@@ -324,6 +354,15 @@ export class HomeSectionService {
         }
       });
     }
+
+    // Debug logging for troubleshooting
+    console.log(`Section "${section.title}" (${section.type}):`, {
+      filterType: section.filterType,
+      itemCount: section.itemCount,
+      itemIds: section.itemIds,
+      foundCollections: collections.length,
+      collectionNames: collections.map(c => c.name)
+    });
 
     return collections;
   }
@@ -480,5 +519,109 @@ export class HomeSectionService {
     });
 
     return highestOrderSection?.order ?? -1;
+  }
+
+  // Debug method to check why a specific collection isn't showing
+  async debugCollectionVisibility(collectionName: string): Promise<any> {
+    console.log(`🔍 Debugging collection visibility for: "${collectionName}"`);
+
+    // 1. Check if collection exists and its status
+    const collection = await this.prisma.collection.findFirst({
+      where: {
+        name: {
+          contains: collectionName,
+          mode: 'insensitive'
+        }
+      },
+      include: {
+        collectionTags: {
+          include: {
+            tag: true
+          }
+        }
+      }
+    });
+
+    if (!collection) {
+      return {
+        error: `Collection "${collectionName}" not found`,
+        suggestions: 'Check if the collection name is correct'
+      };
+    }
+
+    // 2. Get all collection sections
+    const collectionSections = await this.prisma.homeSection.findMany({
+      where: {
+        type: 'COLLECTIONS',
+        isActive: true
+      }
+    });
+
+    // 3. Check each section to see if this collection should appear
+    const sectionAnalysis = await Promise.all(
+      collectionSections.map(async (section) => {
+        let shouldAppear = false;
+        let reason = '';
+
+        if (section.itemIds && section.itemIds.length > 0) {
+          // Specific items mode
+          shouldAppear = section.itemIds.includes(collection.id);
+          reason = shouldAppear
+            ? 'Collection ID is in section itemIds'
+            : 'Collection ID is NOT in section itemIds';
+        } else {
+          // Filter mode
+          if (section.filterType === 'seasonal') {
+            const hasSeasonalTag = collection.collectionTags.some(ct =>
+              ct.tag.name.toLowerCase().includes('seasonal')
+            );
+            shouldAppear = hasSeasonalTag;
+            reason = shouldAppear
+              ? 'Collection has seasonal tag'
+              : 'Collection does NOT have seasonal tag';
+          } else {
+            // No filter, should appear if collection is active and public
+            shouldAppear = collection.isActive && collection.isPublic;
+            reason = shouldAppear
+              ? 'Collection is active and public'
+              : `Collection status: active=${collection.isActive}, public=${collection.isPublic}`;
+          }
+        }
+
+        // Get actual collections for this section
+        const actualCollections = await this.getCollectionsForSection(section);
+        const isActuallyShowing = actualCollections.some(c => c.id === collection.id);
+
+        return {
+          sectionId: section.id,
+          sectionTitle: section.title,
+          filterType: section.filterType,
+          itemCount: section.itemCount,
+          itemIds: section.itemIds,
+          shouldAppear,
+          isActuallyShowing,
+          reason,
+          actualCollectionCount: actualCollections.length,
+          actualCollectionNames: actualCollections.map(c => c.name)
+        };
+      })
+    );
+
+    return {
+      collection: {
+        id: collection.id,
+        name: collection.name,
+        isActive: collection.isActive,
+        isPublic: collection.isPublic,
+        createdAt: collection.createdAt,
+        tags: collection.collectionTags.map(ct => ct.tag.name)
+      },
+      collectionSections: sectionAnalysis,
+      summary: {
+        totalCollectionSections: collectionSections.length,
+        sectionsWhereItShouldAppear: sectionAnalysis.filter(s => s.shouldAppear).length,
+        sectionsWhereItActuallyAppears: sectionAnalysis.filter(s => s.isActuallyShowing).length
+      }
+    };
   }
 }

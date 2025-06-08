@@ -30,13 +30,22 @@ export class SongController {
 
   @Get()
   @Public()
-  @ApiOperation({ summary: 'Get all songs' })
+  @ApiOperation({ summary: 'Get all songs with incremental sync support' })
   @ApiResponse({ status: 200, description: 'Return all songs.', type: [SongResponseDto] })
   async findAll(
     @Query('search') search?: string,
     @Query('artistId') artistId?: string,
     @Query('tags') tags?: string,
+    @Query('since') since?: string,
+    @Query('limit') limit?: string,
   ): Promise<SongResponseDto[]> {
+    // If since parameter is provided, use incremental sync
+    if (since) {
+      const limitNum = limit ? parseInt(limit, 10) : 100;
+      return this.songService.findAllSince(since, limitNum);
+    }
+
+    // Otherwise use regular search
     return this.songService.findAll(search, artistId, tags);
   }
 

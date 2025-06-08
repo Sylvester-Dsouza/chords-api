@@ -46,19 +46,28 @@ export class SetlistService {
     return setlist;
   }
 
-  async findAllByCustomer(customerId: string): Promise<SetlistResponseDto[]> {
-    const cacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
+  async findAllByCustomer(customerId: string, since?: string, limit?: number): Promise<SetlistResponseDto[]> {
+    const cacheKey = this.cacheService.createListKey(CachePrefix.SETLISTS, { customerId, since: since || 'all' });
 
     try {
       return await this.cacheService.getOrSet(
         cacheKey,
         async () => {
-          this.logger.debug(`Cache miss for setlists of customer ${customerId}`);
+          this.logger.debug(`Cache miss for setlists of customer ${customerId} ${since ? `since ${since}` : 'all'}`);
 
-          return this.prisma.setlist.findMany({
-            where: {
-              customerId,
-            },
+          const where: any = {
+            customerId,
+          };
+
+          // If since timestamp is provided, only get setlists updated after that time
+          if (since) {
+            where.updatedAt = {
+              gt: new Date(since)
+            };
+          }
+
+          const setlists = await this.prisma.setlist.findMany({
+            where,
             include: {
               songs: {
                 include: {
@@ -69,18 +78,25 @@ export class SetlistService {
             orderBy: {
               updatedAt: 'desc',
             },
+            take: limit, // Apply limit if provided
           });
+
+          this.logger.debug(`Found ${setlists.length} setlists for customer ${customerId} ${since ? `updated since ${since}` : 'total'}`);
+          return setlists;
         },
-        CacheTTL.MEDIUM // Setlists change moderately often
+        since ? CacheTTL.SHORT : CacheTTL.MEDIUM // Shorter cache for incremental updates
       );
     } catch (error: any) {
       this.logger.error(`Error fetching setlists for customer ${customerId}: ${error.message}`);
 
       // Fallback to direct database query
+      const where: any = { customerId };
+      if (since) {
+        where.updatedAt = { gt: new Date(since) };
+      }
+
       return this.prisma.setlist.findMany({
-        where: {
-          customerId,
-        },
+        where,
         include: {
           songs: {
             include: {
@@ -91,6 +107,7 @@ export class SetlistService {
         orderBy: {
           updatedAt: 'desc',
         },
+        take: limit,
       });
     }
   }
