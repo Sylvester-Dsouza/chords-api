@@ -30,8 +30,10 @@ export class ArtistService {
       website: createArtistDto.website,
       isFeatured: createArtistDto.isFeatured,
       isActive: createArtistDto.isActive,
-      socialLinks: createArtistDto.socialLinks ? JSON.parse(JSON.stringify(createArtistDto.socialLinks)) : undefined
+      socialLinks: createArtistDto.socialLinks || null
     };
+
+    console.log('Creating artist with data:', JSON.stringify(data, null, 2));
 
     // Create the artist
     const artist = await this.prisma.artist.create({
@@ -124,8 +126,10 @@ export class ArtistService {
     if (updateArtistDto.isFeatured !== undefined) data.isFeatured = updateArtistDto.isFeatured;
     if (updateArtistDto.isActive !== undefined) data.isActive = updateArtistDto.isActive;
     if (updateArtistDto.socialLinks !== undefined) {
-      data.socialLinks = updateArtistDto.socialLinks ? JSON.parse(JSON.stringify(updateArtistDto.socialLinks)) : null;
+      data.socialLinks = updateArtistDto.socialLinks || null;
     }
+
+    console.log('Updating artist with data:', JSON.stringify(data, null, 2));
 
     // Update artist
     const updatedArtist = await this.prisma.artist.update({

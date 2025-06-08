@@ -58,11 +58,8 @@ export class CreateArtistDto {
   @ApiProperty({
     description: 'Social media links',
     required: false,
-    type: SocialLinks
+    example: { facebook: 'https://facebook.com/artist', twitter: 'https://twitter.com/artist' }
   })
-  @IsObject()
-  @ValidateNested()
-  @Type(() => SocialLinks)
   @IsOptional()
   socialLinks?: SocialLinks;
 }
@@ -101,11 +98,8 @@ export class UpdateArtistDto {
   @ApiProperty({
     description: 'Social media links',
     required: false,
-    type: SocialLinks
+    example: { facebook: 'https://facebook.com/artist', twitter: 'https://twitter.com/artist' }
   })
-  @IsObject()
-  @ValidateNested()
-  @Type(() => SocialLinks)
   @IsOptional()
   socialLinks?: SocialLinks;
 }
