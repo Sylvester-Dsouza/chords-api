@@ -49,6 +49,18 @@ export class SongController {
     return this.songService.findAll(search, artistId, tags);
   }
 
+  @Get('exists')
+  @Public()
+  @ApiOperation({ summary: 'Check if a song exists by title' })
+  @ApiResponse({ status: 200, description: 'Return whether the song exists or not.', type: Boolean })
+  async checkSongExists(@Query('title') title: string): Promise<{ exists: boolean }> {
+    if (!title || title.trim() === '') {
+      return { exists: false };
+    }
+    const exists = await this.songService.checkSongExists(title);
+    return { exists };
+  }
+
   @Get('debug')
   @Public()
   @ApiOperation({ summary: 'Debug endpoint to check songs in database' })

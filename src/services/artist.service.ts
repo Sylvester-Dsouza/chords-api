@@ -28,6 +28,8 @@ export class ArtistService {
       bio: createArtistDto.bio,
       imageUrl: createArtistDto.imageUrl,
       website: createArtistDto.website,
+      metaTitle: createArtistDto.metaTitle,
+      metaDescription: createArtistDto.metaDescription,
       isFeatured: createArtistDto.isFeatured,
       isActive: createArtistDto.isActive,
       socialLinks: createArtistDto.socialLinks ? JSON.parse(JSON.stringify(createArtistDto.socialLinks)) : undefined
@@ -123,6 +125,8 @@ export class ArtistService {
     if (updateArtistDto.website !== undefined) data.website = updateArtistDto.website;
     if (updateArtistDto.isFeatured !== undefined) data.isFeatured = updateArtistDto.isFeatured;
     if (updateArtistDto.isActive !== undefined) data.isActive = updateArtistDto.isActive;
+    if (updateArtistDto.metaTitle !== undefined) data.metaTitle = updateArtistDto.metaTitle;
+    if (updateArtistDto.metaDescription !== undefined) data.metaDescription = updateArtistDto.metaDescription;
     if (updateArtistDto.socialLinks !== undefined) {
       data.socialLinks = updateArtistDto.socialLinks ? JSON.parse(JSON.stringify(updateArtistDto.socialLinks)) : null;
     }

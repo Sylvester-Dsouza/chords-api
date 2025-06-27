@@ -17,6 +17,16 @@ export class CreateCollectionDto {
   @IsOptional()
   imageUrl?: string;
 
+  @ApiProperty({ example: 'Top Worship Songs 2023 - Best Christian Music Collection', description: 'Custom meta title for SEO', required: false })
+  @IsString()
+  @IsOptional()
+  metaTitle?: string;
+
+  @ApiProperty({ example: 'Discover the best worship songs of 2023 in this curated collection featuring top Christian artists and powerful worship anthems.', description: 'Custom meta description for SEO', required: false })
+  @IsString()
+  @IsOptional()
+  metaDescription?: string;
+
   @ApiProperty({ example: true, description: 'Whether the collection is public', required: false, default: true })
   @IsBoolean()
   @IsOptional()
@@ -43,6 +53,16 @@ export class UpdateCollectionDto {
   @IsUrl()
   @IsOptional()
   imageUrl?: string;
+
+  @ApiProperty({ example: 'Top Worship Songs 2023 - Best Christian Music Collection', description: 'Custom meta title for SEO', required: false })
+  @IsString()
+  @IsOptional()
+  metaTitle?: string;
+
+  @ApiProperty({ example: 'Discover the best worship songs of 2023 in this curated collection featuring top Christian artists and powerful worship anthems.', description: 'Custom meta description for SEO', required: false })
+  @IsString()
+  @IsOptional()
+  metaDescription?: string;
 
   @ApiProperty({ example: true, description: 'Whether the collection is public', required: false })
   @IsBoolean()
@@ -73,6 +93,12 @@ export class CollectionResponseDto {
 
   @ApiProperty({ example: 'https://example.com/collection.jpg', description: 'URL to collection image' })
   imageUrl?: string | null = null;
+
+  @ApiProperty({ example: 'Top Worship Songs 2023 - Best Christian Music Collection', description: 'Custom meta title for SEO' })
+  metaTitle?: string | null = null;
+
+  @ApiProperty({ example: 'Discover the best worship songs of 2023 in this curated collection featuring top Christian artists and powerful worship anthems.', description: 'Custom meta description for SEO' })
+  metaDescription?: string | null = null;
 
   @ApiProperty({ example: true, description: 'Whether the collection is public' })
   isPublic: boolean = true;

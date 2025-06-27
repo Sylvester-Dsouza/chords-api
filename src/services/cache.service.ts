@@ -20,6 +20,7 @@ export enum CacheTTL {
 export enum CachePrefix {
   SONG = 'song:',
   SONGS = 'songs:',
+  SONG_EXISTS = 'song_exists:',
   ARTIST = 'artist:',
   ARTISTS = 'artists:',
   COLLECTION = 'collection:',
@@ -180,6 +181,31 @@ export class CacheService {
    */
   isEnabled(): boolean {
     return this.enabled;
+  }
+
+  /**
+   * Check if Redis is available
+   * @returns Promise resolving to true if Redis is available, false otherwise
+   */
+  async isRedisAvailable(): Promise<boolean> {
+    try {
+      if (!this.redisService.isReady()) {
+        return false;
+      }
+      
+      // Ping Redis to check if it's responsive
+      const client = this.redisService.getClient();
+      if (!client) {
+        return false;
+      }
+      
+      const ping = await client.ping();
+      return ping === 'PONG';
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(`Redis health check failed: ${err.message || 'Unknown error'}`, err.stack || 'No stack trace');
+      return false;
+    }
   }
 
   /**

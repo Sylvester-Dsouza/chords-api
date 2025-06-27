@@ -290,6 +290,61 @@ export class SetlistService {
     return updatedSetlist;
   }
 
+  async removeMultipleSongs(setlistId: string, customerId: string, songIds: string[]): Promise<SetlistResponseDto> {
+    this.logger.debug(`Removing ${songIds.length} songs from setlist ${setlistId} for customer ${customerId}`);
+
+    // Check if setlist exists and belongs to the customer
+    const setlist = await this.findOne(setlistId, customerId);
+
+    // Validate all songs exist in a single query
+    const songs = await this.prisma.song.findMany({
+      where: { id: { in: songIds } },
+      select: { id: true }, // Only select ID for performance
+    });
+
+    if (songs.length !== songIds.length) {
+      const foundSongIds = songs.map(s => s.id);
+      const missingSongIds = songIds.filter(id => !foundSongIds.includes(id));
+      throw new NotFoundException(`Songs with IDs ${missingSongIds.join(', ')} not found`);
+    }
+
+    // Get existing song IDs in the setlist
+    const existingSongIds = (setlist.songs || []).map(s => s.id);
+
+    // Filter to only songs that are actually in the setlist
+    const songsToRemove = songIds.filter(id => existingSongIds.includes(id));
+
+    if (songsToRemove.length === 0) {
+      throw new BadRequestException('None of the selected songs are in the setlist');
+    }
+
+    this.logger.debug(`Removing ${songsToRemove.length} songs from setlist (${songIds.length - songsToRemove.length} were not in setlist)`);
+
+    // Remove all songs from setlist in a single operation
+    const updatedSetlist = await this.prisma.setlist.update({
+      where: { id: setlistId },
+      data: {
+        songs: {
+          disconnect: songsToRemove.map(id => ({ id })),
+        },
+      },
+      include: {
+        songs: {
+          include: {
+            artist: true,
+          },
+        },
+      },
+    });
+
+    // Invalidate customer's setlists cache
+    const cacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
+    await this.cacheService.delete(cacheKey);
+    this.logger.debug(`Invalidated setlists cache for customer ${customerId} after removing songs`);
+
+    return updatedSetlist;
+  }
+
   async remove(id: string, customerId: string): Promise<SetlistResponseDto> {
     // Check if setlist exists and belongs to the customer
     await this.findOne(id, customerId);

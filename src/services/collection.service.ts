@@ -18,6 +18,8 @@ export class CollectionService {
         name: createCollectionDto.name,
         description: createCollectionDto.description,
         imageUrl: createCollectionDto.imageUrl,
+        metaTitle: createCollectionDto.metaTitle,
+        metaDescription: createCollectionDto.metaDescription,
         isPublic: createCollectionDto.isPublic ?? true,
         isActive: createCollectionDto.isActive ?? true,
       },
@@ -136,10 +138,20 @@ export class CollectionService {
     // Check if collection exists
     await this.findOne(id);
 
+    // Prepare data for update
+    const data: any = {};
+    if (updateCollectionDto.name !== undefined) data.name = updateCollectionDto.name;
+    if (updateCollectionDto.description !== undefined) data.description = updateCollectionDto.description;
+    if (updateCollectionDto.imageUrl !== undefined) data.imageUrl = updateCollectionDto.imageUrl;
+    if (updateCollectionDto.metaTitle !== undefined) data.metaTitle = updateCollectionDto.metaTitle;
+    if (updateCollectionDto.metaDescription !== undefined) data.metaDescription = updateCollectionDto.metaDescription;
+    if (updateCollectionDto.isPublic !== undefined) data.isPublic = updateCollectionDto.isPublic;
+    if (updateCollectionDto.isActive !== undefined) data.isActive = updateCollectionDto.isActive;
+    
     // Update collection
     const updatedCollection = await this.prisma.collection.update({
       where: { id },
-      data: updateCollectionDto,
+      data,
       include: {
         songs: {
           include: {

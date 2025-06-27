@@ -45,6 +45,16 @@ export class CreateArtistDto {
   @IsOptional()
   website?: string;
 
+  @ApiProperty({ example: 'Hillsong United - Award-winning Worship Band', description: 'Custom meta title for SEO', required: false })
+  @IsString()
+  @IsOptional()
+  metaTitle?: string;
+
+  @ApiProperty({ example: 'Hillsong United is an Australian worship band known for their powerful worship songs and global impact.', description: 'Custom meta description for SEO', required: false })
+  @IsString()
+  @IsOptional()
+  metaDescription?: string;
+
   @ApiProperty({ example: true, description: 'Whether the artist is featured', required: false, default: false })
   @IsBoolean()
   @IsOptional()
@@ -88,6 +98,16 @@ export class UpdateArtistDto {
   @IsOptional()
   website?: string;
 
+  @ApiProperty({ example: 'Hillsong United - Award-winning Worship Band', description: 'Custom meta title for SEO', required: false })
+  @IsString()
+  @IsOptional()
+  metaTitle?: string;
+
+  @ApiProperty({ example: 'Hillsong United is an Australian worship band known for their powerful worship songs and global impact.', description: 'Custom meta description for SEO', required: false })
+  @IsString()
+  @IsOptional()
+  metaDescription?: string;
+
   @ApiProperty({ example: true, description: 'Whether the artist is featured', required: false })
   @IsBoolean()
   @IsOptional()
@@ -125,6 +145,12 @@ export class ArtistResponseDto {
 
   @ApiProperty({ example: 'https://hillsong.com', description: 'Artist website' })
   website?: string | null = null;
+
+  @ApiProperty({ example: 'Hillsong United - Award-winning Worship Band', description: 'Custom meta title for SEO' })
+  metaTitle?: string | null = null;
+
+  @ApiProperty({ example: 'Hillsong United is an Australian worship band known for their powerful worship songs and global impact.', description: 'Custom meta description for SEO' })
+  metaDescription?: string | null = null;
 
   @ApiProperty({ example: true, description: 'Whether the artist is featured' })
   isFeatured: boolean = false;

@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, BadRequestException, Logger, InternalSer
 import { PrismaService } from './prisma.service';
 import { CacheService, CachePrefix, CacheTTL } from './cache.service';
 import { CreateSongDto, UpdateSongDto, SongResponseDto } from '../dto/song.dto';
+import { ArtistResponseDto } from '../dto/artist.dto';
+import { LanguageResponseDto } from '../dto/language.dto';
 import { Song } from '@prisma/client';
 import { parse as csvParse } from 'csv-parse';
 import { stringify as csvStringify } from 'csv-stringify';
@@ -15,6 +17,38 @@ export class SongService {
     private readonly prisma: PrismaService,
     private readonly cacheService: CacheService
   ) {}
+  
+  /**
+   * Determines the optimal cache TTL based on query parameters
+   * - Search queries: shorter TTL as they're more personalized
+   * - Artist/tag specific queries: medium TTL as they change less frequently
+   * - Sorted by trending/popularity: shorter TTL as they change more frequently
+   * - Default queries: longer TTL as they're more stable
+   */
+  private getCacheTTLForSongQuery(
+    search?: string,
+    artistId?: string,
+    tags?: string,
+    sortBy?: string
+  ): number {
+    // Search queries should have shorter TTL
+    if (search) {
+      return CacheTTL.SHORT; // 60 seconds
+    }
+    
+    // Trending or popularity-based sorting should have shorter TTL
+    if (sortBy === 'viewCount' || sortBy === 'averageRating') {
+      return CacheTTL.SHORT; // 60 seconds
+    }
+    
+    // Artist or tag specific queries can have medium TTL
+    if (artistId || tags) {
+      return CacheTTL.MEDIUM; // 5 minutes
+    }
+    
+    // Default queries can have longer TTL
+    return CacheTTL.LONG; // 30 minutes
+  }
 
   async create(createSongDto: CreateSongDto): Promise<SongResponseDto> {
     // Check if artist exists
@@ -37,9 +71,26 @@ export class SongService {
       }
     }
 
-    // Create the song
+    // Create the song with explicit field handling
     const song = await this.prisma.song.create({
-      data: createSongDto,
+      data: {
+        title: createSongDto.title,
+        artistId: createSongDto.artistId,
+        languageId: createSongDto.languageId,
+        key: createSongDto.key,
+        tempo: createSongDto.tempo,
+        timeSignature: createSongDto.timeSignature,
+        difficulty: createSongDto.difficulty,
+        chordSheet: createSongDto.chordSheet,
+        imageUrl: createSongDto.imageUrl,
+        officialVideoUrl: createSongDto.officialVideoUrl,
+        tutorialVideoUrl: createSongDto.tutorialVideoUrl,
+        capo: createSongDto.capo,
+        metaTitle: createSongDto.metaTitle,
+        metaDescription: createSongDto.metaDescription,
+        status: createSongDto.status,
+        tags: createSongDto.tags,
+      },
       include: {
         artist: true,
         language: true,
@@ -345,15 +396,112 @@ export class SongService {
             orderBy = { artist: { name: sortOrder } };
           }
 
-          const songs = await this.prisma.song.findMany({
+          // Use select instead of include for better performance
+          // Only retrieve the fields that are actually needed for list view
+          const songsData = await this.prisma.song.findMany({
             where,
-            include: {
-              artist: true,
-              language: true,
+            select: {
+              id: true,
+              title: true,
+              key: true,
+              tempo: true,
+              difficulty: true,
+              viewCount: true,
+              averageRating: true,
+              createdAt: true,
+              updatedAt: true,
+              metaTitle: true,
+              metaDescription: true,
+              artistId: true,
+              languageId: true,
+              chordSheet: true,
+              capo: true,
+              status: true,
+              uniqueViewers: true,
+              lastViewed: true,
+              imageUrl: true,
+              officialVideoUrl: true,
+              tutorialVideoUrl: true,
+              timeSignature: true,
+              // Only select necessary fields from related entities
+              artist: {
+                select: {
+                  id: true,
+                  name: true,
+                }
+              },
+              language: {
+                select: {
+                  id: true,
+                  name: true,
+                }
+              },
+              songTags: {
+                select: {
+                  tag: {
+                    select: {
+                      name: true
+                    }
+                  }
+                }
+              },
             },
             orderBy,
             skip,
             take: limit,
+          });
+          
+          // Map the Prisma result to SongResponseDto format
+          const songs = songsData.map(song => {
+            const dto = new SongResponseDto();
+            dto.id = song.id;
+            dto.title = song.title;
+            dto.artistId = song.artistId;
+            
+            // Map artist data if available
+            if (song.artist) {
+              const artistDto = new ArtistResponseDto();
+              artistDto.id = song.artist.id;
+              artistDto.name = song.artist.name;
+              dto.artist = artistDto;
+            }
+            
+            dto.languageId = song.languageId;
+            
+            // Map language data if available
+            if (song.language) {
+              const languageDto = new LanguageResponseDto();
+              languageDto.id = song.language.id;
+              languageDto.name = song.language.name;
+              dto.language = languageDto;
+            } else {
+              dto.language = null;
+            }
+            
+            dto.key = song.key;
+            dto.tempo = song.tempo;
+            dto.timeSignature = song.timeSignature;
+            dto.difficulty = song.difficulty;
+            dto.chordSheet = song.chordSheet || '';
+            dto.imageUrl = song.imageUrl;
+            dto.officialVideoUrl = song.officialVideoUrl;
+            dto.tutorialVideoUrl = song.tutorialVideoUrl;
+            dto.capo = song.capo || 0;
+            
+            // Map tags from songTags relation
+            dto.tags = song.songTags ? 
+              song.songTags.map((tagRelation: { tag: { name: string } }) => tagRelation.tag.name) : 
+              [];
+              
+            dto.status = song.status as 'DRAFT' | 'ACTIVE';
+            dto.viewCount = song.viewCount;
+            dto.uniqueViewers = song.uniqueViewers;
+            dto.lastViewed = song.lastViewed;
+            dto.createdAt = song.createdAt;
+            dto.updatedAt = song.updatedAt;
+            dto.metaTitle = song.metaTitle;
+            dto.metaDescription = song.metaDescription;
+            return dto;
           });
 
           const totalPages = Math.ceil(total / limit);
@@ -582,6 +730,8 @@ export class SongService {
     if (updateSongDto.imageUrl !== undefined) updateData.imageUrl = updateSongDto.imageUrl;
     if (updateSongDto.officialVideoUrl !== undefined) updateData.officialVideoUrl = updateSongDto.officialVideoUrl;
     if (updateSongDto.tutorialVideoUrl !== undefined) updateData.tutorialVideoUrl = updateSongDto.tutorialVideoUrl;
+    if (updateSongDto.metaTitle !== undefined) updateData.metaTitle = updateSongDto.metaTitle;
+    if (updateSongDto.metaDescription !== undefined) updateData.metaDescription = updateSongDto.metaDescription;
     if (updateSongDto.tags !== undefined) updateData.tags = updateSongDto.tags;
 
     // Update song
@@ -629,6 +779,45 @@ export class SongService {
     this.logger.debug(`Invalidated cache for song ${id} after deletion`);
 
     return deletedSong;
+  }
+  
+  /**
+   * Check if a song exists by title
+   * @param title The song title to check
+   * @returns Boolean indicating if the song exists
+   */
+  async checkSongExists(title: string): Promise<boolean> {
+    this.logger.debug(`Checking if song with title "${title}" exists`);
+    
+    // Create a cache key for this query
+    const cacheKey = this.cacheService.createKey(CachePrefix.SONG_EXISTS, title);
+    
+    try {
+      // Try to get from cache first with a short TTL
+      return await this.cacheService.getOrSet(
+        cacheKey,
+        async () => {
+          // Count songs with this exact title (case insensitive)
+          const count = await this.prisma.song.count({
+            where: {
+              title: {
+                equals: title,
+                mode: 'insensitive',
+              },
+            },
+          });
+          
+          return count > 0;
+        },
+        CacheTTL.SHORT // Use a short cache time for this check
+      );
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Error checking if song exists: ${errorMessage}`, errorStack);
+      // If there's an error, assume the song doesn't exist
+      return false;
+    }
   }
 
   /**

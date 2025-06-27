@@ -163,6 +163,22 @@ export class SetlistController {
     return this.setlistService.removeSong(id, customerId, songId);
   }
 
+  @Delete(':id/songs/bulk')
+  @ApiOperation({ summary: 'Remove multiple songs from a setlist' })
+  @ApiResponse({ status: 200, description: 'The songs have been successfully removed from the setlist.', type: SetlistResponseDto })
+  @ApiResponse({ status: 400, description: 'Bad Request.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 404, description: 'Setlist or songs not found.' })
+  async removeMultipleSongs(
+    @Param('id') id: string,
+    @Body() removeMultipleSongsDto: AddMultipleSongsToSetlistDto,
+    @Req() req: RequestWithUser
+  ): Promise<SetlistResponseDto> {
+    const customerId = req.user.id;
+    return this.setlistService.removeMultipleSongs(id, customerId, removeMultipleSongsDto.songIds);
+  }
+
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a setlist' })
   @ApiResponse({ status: 200, description: 'The setlist has been successfully deleted.', type: SetlistResponseDto })

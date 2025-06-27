@@ -79,6 +79,16 @@ export class CreateSongDto {
   @IsString()
   @IsOptional()
   status?: 'DRAFT' | 'ACTIVE';
+
+  @ApiProperty({ example: 'Learn to play Amazing Grace - Easy Guitar Chords', description: 'Custom meta title for SEO', required: false })
+  @IsString()
+  @IsOptional()
+  metaTitle?: string;
+
+  @ApiProperty({ example: 'Learn how to play Amazing Grace with easy guitar chords. Perfect for beginners and worship teams.', description: 'Custom meta description for SEO', required: false })
+  @IsString()
+  @IsOptional()
+  metaDescription?: string;
 }
 
 export class UpdateSongDto {
@@ -160,6 +170,16 @@ export class UpdateSongDto {
   @IsString()
   @IsOptional()
   status?: 'DRAFT' | 'ACTIVE';
+
+  @ApiProperty({ example: 'Learn to play Amazing Grace - Easy Guitar Chords', description: 'Custom meta title for SEO', required: false })
+  @IsString()
+  @IsOptional()
+  metaTitle?: string;
+
+  @ApiProperty({ example: 'Learn how to play Amazing Grace with easy guitar chords. Perfect for beginners and worship teams.', description: 'Custom meta description for SEO', required: false })
+  @IsString()
+  @IsOptional()
+  metaDescription?: string;
 }
 
 export class SongResponseDto {
@@ -232,4 +252,10 @@ export class SongResponseDto {
 
   @ApiProperty({ example: '2023-01-01T00:00:00Z', description: 'Last update date' })
   updatedAt: Date = new Date();
+
+  @ApiProperty({ example: 'Learn to play Amazing Grace - Easy Guitar Chords', description: 'Custom meta title for SEO' })
+  metaTitle?: string | null = null;
+
+  @ApiProperty({ example: 'Learn how to play Amazing Grace with easy guitar chords. Perfect for beginners and worship teams.', description: 'Custom meta description for SEO' })
+  metaDescription?: string | null = null;
 }

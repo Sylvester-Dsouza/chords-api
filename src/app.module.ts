@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { CustomThrottlerGuard } from './guards/custom-throttler.guard';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -35,6 +38,7 @@ import { SupabaseModule } from './modules/supabase.module';
 import { UploadModule } from './modules/upload.module';
 import { SongRequestModule } from './modules/song-request.module';
 import { NotificationModule } from './modules/notification.module';
+import { HealthModule } from './health/health.module';
 import { CommentModule } from './modules/comment.module';
 import { SongRatingModule } from './modules/song-rating.module';
 import { HomeSectionModule } from './modules/home-section.module';
@@ -55,6 +59,18 @@ import { BannerItemService } from './services/banner-item.service';
 @Module({
   imports: [
     ConfigModule.forRoot(),
+    ThrottlerModule.forRoot([
+      {
+        name: 'short',
+        ttl: 60,               // Time window in seconds
+        limit: 100,            // Max number of requests in the time window
+      },
+      {
+        name: 'medium',
+        ttl: 300,              // 5 minutes
+        limit: 300,            // Higher limit for longer window
+      },
+    ]),
     CustomerAuthModule,
     UserAuthModule,
     ArtistModule,
@@ -80,13 +96,13 @@ import { BannerItemService } from './services/banner-item.service';
     SongRatingModule,
     HomeSectionModule,
     CoursesModule,
-    VocalModule
+    VocalModule,
+    HealthModule
   ],
   controllers: [
     AppController,
     UserController,
-    CustomerController,
-    HealthController
+    CustomerController
   ],
   providers: [
     AppService,
@@ -98,6 +114,10 @@ import { BannerItemService } from './services/banner-item.service';
     ChordDiagramService,
     RateLimitMiddleware,
     RequestValidationMiddleware,
+    {
+      provide: APP_GUARD,
+      useClass: CustomThrottlerGuard,
+    },
     TokenService,
     AuditLogService,
     SetlistService,

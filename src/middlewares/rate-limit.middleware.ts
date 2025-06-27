@@ -23,24 +23,64 @@ export class RateLimitMiddleware implements NestMiddleware {
   private readonly logger = new Logger(RateLimitMiddleware.name);
 
   // Rate limit configurations for different tiers
+  // Using environment variables with fallbacks for easier configuration
   private readonly rateLimits: Record<RateLimitTier, RateLimitConfig> = {
-    [RateLimitTier.ANONYMOUS]: { points: 100, duration: 60, blockDuration: 30 }, // Increased for development
-    [RateLimitTier.FREE]: { points: 200, duration: 60, blockDuration: 15 },     // Increased for real users
-    [RateLimitTier.BASIC]: { points: 300, duration: 60, blockDuration: 0 },     // Increased for paid users
-    [RateLimitTier.PREMIUM]: { points: 500, duration: 60, blockDuration: 0 },   // Increased for premium users
-    [RateLimitTier.ADMIN]: { points: 3000, duration: 60, blockDuration: 0 },    // Increased for admin users
+    [RateLimitTier.ANONYMOUS]: { 
+      points: parseInt(process.env.RATE_LIMIT_ANONYMOUS || '100'), 
+      duration: 60, 
+      blockDuration: parseInt(process.env.RATE_LIMIT_BLOCK_ANONYMOUS || '30')
+    },
+    [RateLimitTier.FREE]: { 
+      points: parseInt(process.env.RATE_LIMIT_FREE || '200'), 
+      duration: 60, 
+      blockDuration: parseInt(process.env.RATE_LIMIT_BLOCK_FREE || '15')
+    },
+    [RateLimitTier.BASIC]: { 
+      points: parseInt(process.env.RATE_LIMIT_BASIC || '300'), 
+      duration: 60, 
+      blockDuration: parseInt(process.env.RATE_LIMIT_BLOCK_BASIC || '0')
+    },
+    [RateLimitTier.PREMIUM]: { 
+      points: parseInt(process.env.RATE_LIMIT_PREMIUM || '500'), 
+      duration: 60, 
+      blockDuration: parseInt(process.env.RATE_LIMIT_BLOCK_PREMIUM || '0')
+    },
+    [RateLimitTier.ADMIN]: { 
+      points: parseInt(process.env.RATE_LIMIT_ADMIN || '3000'), 
+      duration: 60, 
+      blockDuration: parseInt(process.env.RATE_LIMIT_BLOCK_ADMIN || '0')
+    },
   };
 
   // Endpoint sensitivity multipliers (higher = stricter limits)
   private readonly endpointSensitivity: Record<string, number> = {
+    // Public content endpoints (more lenient)
     '/api/auth': 0.3,        // Auth endpoints get more lenient limits
     '/api/songs': 0.7,       // More lenient for songs
     '/api/artists': 0.7,     // More lenient for artists
     '/api/collections': 0.7, // More lenient for collections
     '/api/comments': 0.5,    // Comments get more lenient limits
+    
+    // Admin endpoints (very lenient for authorized users)
     '/api/admin': 0.2,       // Admin endpoints get more lenient limits
     '/api/admin/analytics': 0.1, // Analytics endpoints get very lenient limits
+    
+    // Resource-intensive endpoints (stricter limits)
     '/api/chord-diagrams': 1.5, // Chord diagrams get stricter limits but less than before
+    '/api/search': 1.2,      // Search is resource-intensive
+    
+    // Mutation endpoints (moderate limits)
+    '/api/ratings': 1.0,     // Rating submissions
+    '/api/likes': 1.0,       // Like/unlike actions
+    '/api/setlists': 0.8,    // Setlist operations
+    
+    // Subscription-related endpoints (lenient)
+    '/api/subscriptions': 0.4, // Subscription management
+    '/api/transactions': 0.4,  // Payment processing
+    
+    // Health and monitoring (very lenient)
+    '/api/health': 0.1,      // Health checks should rarely be rate-limited
+    '/health': 0.1,          // Alternative health endpoint
   };
 
   // Whitelist of IPs that should bypass rate limiting (development IPs)
@@ -164,7 +204,13 @@ export class RateLimitMiddleware implements NestMiddleware {
           const blockKey = `ratelimit:blocked:bot:${ip}:${endpoint}`;
           await this.redisService.set(blockKey, 'blocked', 300);
 
-          this.logger.warn(`Bot rate limit exceeded for ${ip} on ${endpoint} (${count}/${botLimit})`);
+          // Enhanced logging with more context
+      this.logger.warn(
+        `Rate limit exceeded: BOT | IP: ${ip} | Endpoint: ${endpoint} | Count: ${count}/${botLimit} | UA: ${userAgent.substring(0, 50)}`
+      );
+      
+      // If analytics service is available, this would be a good place to record the event
+      // this.analyticsService.recordRateLimitEvent({ type: 'bot', ip, endpoint, count, limit: botLimit });
 
           throw new HttpException(
             {
@@ -204,7 +250,13 @@ export class RateLimitMiddleware implements NestMiddleware {
         const blockKey = `ratelimit:blocked:anonymous:${ip}:${endpoint}`;
         await this.redisService.set(blockKey, 'blocked', 60);
 
-        this.logger.warn(`Anonymous rate limit exceeded for ${ip} on ${endpoint} (${count}/${anonymousLimit})`);
+        // Enhanced logging with more context
+      this.logger.warn(
+        `Rate limit exceeded: ANONYMOUS | IP: ${ip} | Endpoint: ${endpoint} | Count: ${count}/${anonymousLimit} | Path: ${req.path}`
+      );
+      
+      // If analytics service is available, this would be a good place to record the event
+      // this.analyticsService.recordRateLimitEvent({ type: 'anonymous', ip, endpoint, count, limit: anonymousLimit });
 
         throw new HttpException(
           {

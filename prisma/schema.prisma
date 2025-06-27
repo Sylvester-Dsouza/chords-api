@@ -97,12 +97,14 @@ model Customer {
 model Artist {
   id          String   @id @default(uuid())
   name        String   @unique // Artist name
-  bio         String?  @db.Text // Biography
-  imageUrl    String? // Profile image URL
-  website     String? // Website URL
-  socialLinks Json? // Store social media links (JSON array)
-  isFeatured  Boolean  @default(false) @map("isFeatured") // Whether the artist is featured
-  isActive    Boolean  @default(true) @map("isActive") // Whether the artist is active
+  bio             String?  @db.Text // Biography
+  imageUrl        String? // Profile image URL
+  website         String? // Website URL
+  socialLinks     Json? // Store social media links (JSON array)
+  metaTitle       String? @db.Text // Custom meta title for SEO
+  metaDescription String? @db.Text // Custom meta description for SEO
+  isFeatured      Boolean  @default(false) @map("isFeatured") // Whether the artist is featured
+  isActive        Boolean  @default(true) @map("isActive") // Whether the artist is active
   createdAt   DateTime @default(now()) @map("createdAt")
   updatedAt   DateTime @updatedAt @map("updatedAt")
 
@@ -243,6 +245,9 @@ model Song {
   // Video URLs
   officialVideoUrl String? @map("officialVideoUrl") // URL to the official music video
   tutorialVideoUrl String? @map("tutorialVideoUrl") // URL to a tutorial video showing how to play the song
+  // SEO fields
+  metaTitle     String?    @map("metaTitle") @db.Text // Custom meta title for SEO
+  metaDescription String?   @map("metaDescription") @db.Text // Custom meta description for SEO
   // transpose field removed as it will be handled in the Flutter app
   tags          String[] // Legacy field, will be replaced by the Tag relation
   createdAt     DateTime @default(now()) @map("createdAt")
@@ -437,12 +442,14 @@ model Banner {
 
 // Collections (curated sets of songs)
 model Collection {
-  id          String   @id @default(uuid())
-  name        String
-  description String?  @db.Text
-  imageUrl    String?
-  isPublic    Boolean  @default(true)
-  isActive    Boolean  @default(true) @map("isActive") // Whether the collection is active
+  id             String   @id @default(uuid())
+  name           String
+  description    String?  @db.Text
+  imageUrl       String?
+  metaTitle      String?  @db.Text // Custom meta title for SEO
+  metaDescription String?  @db.Text // Custom meta description for SEO
+  isPublic       Boolean  @default(true)
+  isActive       Boolean  @default(true) @map("isActive") // Whether the collection is active
   createdAt   DateTime @default(now()) @map("createdAt")
   updatedAt   DateTime @updatedAt @map("updatedAt")
 

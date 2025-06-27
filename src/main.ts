@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { initializeFirebase } from './config/firebase.config';
 import { configureMiddleware } from './config/middleware.config';
 import { ValidationExceptionFilter } from './filters/validation-exception.filter';
+import compression from 'compression';
 
 async function bootstrap() {
   // Initialize Firebase Admin SDK
@@ -24,6 +25,9 @@ async function bootstrap() {
         ? ['error', 'warn']
         : ['log', 'error', 'warn', 'debug', 'verbose'],
   });
+  
+  // Enable compression to reduce response size and improve performance
+  app.use(compression());
 
   // Enable CORS with specific configuration
   if (process.env.NODE_ENV === 'production') {
