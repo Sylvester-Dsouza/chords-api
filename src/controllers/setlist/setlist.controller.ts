@@ -362,4 +362,70 @@ export class SetlistController {
     const customerId = req.user.id;
     return this.setlistService.joinSetlist(shareCode, customerId);
   }
+
+  // Community Setlist Features
+
+  @Post(':id/make-public')
+  @ApiOperation({ summary: 'Make setlist public for community' })
+  @ApiResponse({ status: 200, description: 'Setlist made public successfully.', type: SetlistResponseDto })
+  @ApiResponse({ status: 404, description: 'Setlist not found.' })
+  @ApiResponse({ status: 403, description: 'Not authorized to modify this setlist.' })
+  async makePublic(
+    @Param('id') id: string,
+    @Req() req: RequestWithUser
+  ): Promise<SetlistResponseDto> {
+    const customerId = req.user.id;
+    return this.setlistService.makePublic(id, customerId);
+  }
+
+  @Post(':id/make-private')
+  @ApiOperation({ summary: 'Make setlist private (remove from community)' })
+  @ApiResponse({ status: 200, description: 'Setlist made private successfully.', type: SetlistResponseDto })
+  @ApiResponse({ status: 404, description: 'Setlist not found.' })
+  @ApiResponse({ status: 403, description: 'Not authorized to modify this setlist.' })
+  async makePrivate(
+    @Param('id') id: string,
+    @Req() req: RequestWithUser
+  ): Promise<SetlistResponseDto> {
+    const customerId = req.user.id;
+    return this.setlistService.makePrivate(id, customerId);
+  }
+
+  @Post(':id/like')
+  @ApiOperation({ summary: 'Like a setlist' })
+  @ApiResponse({ status: 200, description: 'Setlist liked successfully.' })
+  @ApiResponse({ status: 404, description: 'Setlist not found.' })
+  @ApiResponse({ status: 409, description: 'Already liked this setlist.' })
+  async likeSetlist(
+    @Param('id') id: string,
+    @Req() req: RequestWithUser
+  ): Promise<{ success: boolean; likeCount: number }> {
+    const customerId = req.user.id;
+    return this.setlistService.likeSetlist(id, customerId);
+  }
+
+  @Delete(':id/like')
+  @ApiOperation({ summary: 'Unlike a setlist' })
+  @ApiResponse({ status: 200, description: 'Setlist unliked successfully.' })
+  @ApiResponse({ status: 404, description: 'Setlist not found.' })
+  @ApiResponse({ status: 409, description: 'Not liked this setlist.' })
+  async unlikeSetlist(
+    @Param('id') id: string,
+    @Req() req: RequestWithUser
+  ): Promise<{ success: boolean; likeCount: number }> {
+    const customerId = req.user.id;
+    return this.setlistService.unlikeSetlist(id, customerId);
+  }
+
+  @Post(':id/view')
+  @ApiOperation({ summary: 'Increment view count for a setlist' })
+  @ApiResponse({ status: 200, description: 'View count incremented successfully.' })
+  @ApiResponse({ status: 404, description: 'Setlist not found.' })
+  async incrementViewCount(
+    @Param('id') id: string,
+    @Req() req: RequestWithUser
+  ): Promise<{ success: boolean; viewCount: number }> {
+    const customerId = req.user.id;
+    return this.setlistService.incrementViewCount(id, customerId);
+  }
 }

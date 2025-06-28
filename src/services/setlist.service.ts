@@ -1105,4 +1105,245 @@ export class SetlistService {
     // In the future, this would handle real-time synchronization
     return this.getSetlistWithCollaborativeData(setlistId, customerId);
   }
+
+  // Community Features
+
+  async makePublic(setlistId: string, customerId: string): Promise<SetlistResponseDto> {
+    // Check if user owns the setlist
+    const setlist = await this.prisma.setlist.findUnique({
+      where: { id: setlistId },
+      select: { customerId: true, isPublic: true },
+    });
+
+    if (!setlist) {
+      throw new NotFoundException('Setlist not found');
+    }
+
+    if (setlist.customerId !== customerId) {
+      throw new ForbiddenException('Only the owner can make a setlist public');
+    }
+
+    if (setlist.isPublic) {
+      throw new ConflictException('Setlist is already public');
+    }
+
+    // Update setlist to be public
+    const updatedSetlist = await this.prisma.setlist.update({
+      where: { id: setlistId },
+      data: {
+        isPublic: true,
+        sharedAt: new Date(),
+      },
+      include: {
+        songs: {
+          include: {
+            artist: true,
+          },
+        },
+      },
+    });
+
+    // Invalidate cache
+    const cacheKey = this.cacheService.createKey(CachePrefix.SETLIST, setlistId);
+    await this.cacheService.delete(cacheKey);
+
+    this.logger.log(`Setlist ${setlistId} made public by customer ${customerId}`);
+    return updatedSetlist;
+  }
+
+  async makePrivate(setlistId: string, customerId: string): Promise<SetlistResponseDto> {
+    // Check if user owns the setlist
+    const setlist = await this.prisma.setlist.findUnique({
+      where: { id: setlistId },
+      select: { customerId: true, isPublic: true },
+    });
+
+    if (!setlist) {
+      throw new NotFoundException('Setlist not found');
+    }
+
+    if (setlist.customerId !== customerId) {
+      throw new ForbiddenException('Only the owner can make a setlist private');
+    }
+
+    if (!setlist.isPublic) {
+      throw new ConflictException('Setlist is already private');
+    }
+
+    // Update setlist to be private
+    const updatedSetlist = await this.prisma.setlist.update({
+      where: { id: setlistId },
+      data: {
+        isPublic: false,
+        sharedAt: null,
+      },
+      include: {
+        songs: {
+          include: {
+            artist: true,
+          },
+        },
+      },
+    });
+
+    // Invalidate cache
+    const cacheKey = this.cacheService.createKey(CachePrefix.SETLIST, setlistId);
+    await this.cacheService.delete(cacheKey);
+
+    this.logger.log(`Setlist ${setlistId} made private by customer ${customerId}`);
+    return updatedSetlist;
+  }
+
+  async likeSetlist(setlistId: string, customerId: string): Promise<{ success: boolean; likeCount: number }> {
+    // Check if setlist exists and is public
+    const setlist = await this.prisma.setlist.findUnique({
+      where: { id: setlistId },
+      select: { isPublic: true, likeCount: true },
+    });
+
+    if (!setlist) {
+      throw new NotFoundException('Setlist not found');
+    }
+
+    if (!setlist.isPublic) {
+      throw new ForbiddenException('Can only like public setlists');
+    }
+
+    // Check if already liked
+    const existingLike = await this.prisma.setlistLike.findUnique({
+      where: {
+        setlistId_customerId: {
+          setlistId,
+          customerId,
+        },
+      },
+    });
+
+    if (existingLike) {
+      throw new ConflictException('Already liked this setlist');
+    }
+
+    // Create like and increment count
+    await this.prisma.$transaction(async (tx) => {
+      await tx.setlistLike.create({
+        data: {
+          setlistId,
+          customerId,
+        },
+      });
+
+      await tx.setlist.update({
+        where: { id: setlistId },
+        data: {
+          likeCount: {
+            increment: 1,
+          },
+        },
+      });
+    });
+
+    const newLikeCount = setlist.likeCount + 1;
+
+    // Invalidate cache
+    const cacheKey = this.cacheService.createKey(CachePrefix.SETLIST, setlistId);
+    await this.cacheService.delete(cacheKey);
+
+    this.logger.log(`Setlist ${setlistId} liked by customer ${customerId}`);
+    return { success: true, likeCount: newLikeCount };
+  }
+
+  async unlikeSetlist(setlistId: string, customerId: string): Promise<{ success: boolean; likeCount: number }> {
+    // Check if setlist exists
+    const setlist = await this.prisma.setlist.findUnique({
+      where: { id: setlistId },
+      select: { likeCount: true },
+    });
+
+    if (!setlist) {
+      throw new NotFoundException('Setlist not found');
+    }
+
+    // Check if liked
+    const existingLike = await this.prisma.setlistLike.findUnique({
+      where: {
+        setlistId_customerId: {
+          setlistId,
+          customerId,
+        },
+      },
+    });
+
+    if (!existingLike) {
+      throw new ConflictException('Not liked this setlist');
+    }
+
+    // Remove like and decrement count
+    await this.prisma.$transaction(async (tx) => {
+      await tx.setlistLike.delete({
+        where: {
+          setlistId_customerId: {
+            setlistId,
+            customerId,
+          },
+        },
+      });
+
+      await tx.setlist.update({
+        where: { id: setlistId },
+        data: {
+          likeCount: {
+            decrement: 1,
+          },
+        },
+      });
+    });
+
+    const newLikeCount = Math.max(0, setlist.likeCount - 1);
+
+    // Invalidate cache
+    const cacheKey = this.cacheService.createKey(CachePrefix.SETLIST, setlistId);
+    await this.cacheService.delete(cacheKey);
+
+    this.logger.log(`Setlist ${setlistId} unliked by customer ${customerId}`);
+    return { success: true, likeCount: newLikeCount };
+  }
+
+  async incrementViewCount(setlistId: string, customerId: string): Promise<{ success: boolean; viewCount: number }> {
+    // Check if setlist exists and is public
+    const setlist = await this.prisma.setlist.findUnique({
+      where: { id: setlistId },
+      select: { isPublic: true, viewCount: true, customerId: true },
+    });
+
+    if (!setlist) {
+      throw new NotFoundException('Setlist not found');
+    }
+
+    if (!setlist.isPublic) {
+      throw new ForbiddenException('Can only view public setlists');
+    }
+
+    // Don't increment view count for own setlists
+    if (setlist.customerId === customerId) {
+      return { success: true, viewCount: setlist.viewCount };
+    }
+
+    // Increment view count
+    const updatedSetlist = await this.prisma.setlist.update({
+      where: { id: setlistId },
+      data: {
+        viewCount: {
+          increment: 1,
+        },
+      },
+      select: { viewCount: true },
+    });
+
+    // Invalidate cache
+    const cacheKey = this.cacheService.createKey(CachePrefix.SETLIST, setlistId);
+    await this.cacheService.delete(cacheKey);
+
+    this.logger.log(`Setlist ${setlistId} view count incremented by customer ${customerId}`);
+    return { success: true, viewCount: updatedSetlist.viewCount };
+  }
 }

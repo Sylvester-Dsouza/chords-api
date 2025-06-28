@@ -13,4 +13,15 @@ export class HealthController {
       timestamp: new Date().toISOString(),
     };
   }
+
+  @Get('ping')
+  @ApiOperation({ summary: 'Ping API endpoint' })
+  @ApiResponse({ status: 200, description: 'API is responding' })
+  ping() {
+    return {
+      status: 'ok',
+      message: 'pong',
+      timestamp: new Date().toISOString(),
+    };
+  }
 }

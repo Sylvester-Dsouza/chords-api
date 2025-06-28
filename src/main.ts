@@ -92,6 +92,7 @@ async function bootstrap() {
       // { path: 'notifications*', method: RequestMethod.ALL }, // Removed - notifications should use /api prefix
       { path: 'song-ratings*', method: RequestMethod.ALL },
       { path: 'courses*', method: RequestMethod.ALL },
+      { path: 'health*', method: RequestMethod.ALL }, // Exclude health endpoints from /api prefix
       // Also exclude root route
       { path: '', method: RequestMethod.GET }
     ],

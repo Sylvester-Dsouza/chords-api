@@ -84,6 +84,7 @@ model Customer {
   setlistActivities  SetlistActivity[] // Activities performed by this customer
   setlistComments    SetlistComment[] // Comments made by this customer
   setlistSnapshots   SetlistSnapshot[] // Snapshots created by this customer
+  setlistLikes       SetlistLike[] // Setlists liked by this customer
 
   // Analytics relations
   sessions           UserSession[]
@@ -488,6 +489,11 @@ model Setlist {
   allowEditing Boolean @default(false) @map("allowEditing") // Whether collaborators can edit
   allowComments Boolean @default(true) @map("allowComments") // Whether collaborators can comment
 
+  // Community features
+  viewCount   Int      @default(0) @map("viewCount") // Number of views
+  likeCount   Int      @default(0) @map("likeCount") // Number of likes (denormalized)
+  sharedAt    DateTime? @map("sharedAt") // When setlist was made public
+
   // Offline support
   version     Int      @default(1) // Version for conflict resolution
   lastSyncAt  DateTime? @map("lastSyncAt") // Last sync timestamp
@@ -505,6 +511,7 @@ model Setlist {
   activities SetlistActivity[] // Activity log for changes
   comments SetlistComment[] // Comments on the setlist
   snapshots SetlistSnapshot[] // Version snapshots for conflict resolution
+  likes    SetlistLike[] // Users who liked this setlist
 
   // Performance indexes
   @@index([customerId])
@@ -604,6 +611,24 @@ model SetlistSnapshot {
   @@index([setlistId])
   @@index([version])
   @@map("SetlistSnapshot")
+}
+
+// Setlist likes for community features
+model SetlistLike {
+  id        String   @id @default(uuid())
+  setlistId String   @map("setlistId")
+  customerId String  @map("customerId")
+  createdAt DateTime @default(now()) @map("createdAt")
+
+  // Relations
+  setlist   Setlist  @relation(fields: [setlistId], references: [id], onDelete: Cascade)
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  // Unique constraint to prevent duplicate likes
+  @@unique([setlistId, customerId])
+  @@index([setlistId])
+  @@index([customerId])
+  @@map("SetlistLike")
 }
 
 // Song Request model
