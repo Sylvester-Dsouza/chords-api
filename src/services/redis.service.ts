@@ -11,62 +11,60 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   constructor(private configService: ConfigService) {
     const redisUrl = this.configService.get<string>('REDIS_URL');
 
-    this.logger.debug(`Redis URL from config: ${redisUrl ? 'provided' : 'not provided'}`);
-
     if (!redisUrl) {
-      this.logger.warn('Redis URL not provided. Redis caching will be disabled.');
+      console.log('⚠️  Redis: DISABLED (REDIS_URL not found)');
       return;
     }
 
     try {
-      this.logger.debug(`Attempting to connect to Redis with URL: ${redisUrl.substring(0, 20)}...`);
+      this.logger.log(`Attempting to connect to Redis with URL: ${redisUrl.substring(0, 30)}...`);
 
       // For Upstash Redis, the password is included in the URL
       this.redisClient = new Redis(redisUrl, {
         retryStrategy: (times: number) => {
           const delay = Math.min(times * 50, 2000);
+          this.logger.debug(`Redis retry attempt ${times}, delay: ${delay}ms`);
           return delay;
         },
         maxRetriesPerRequest: 3,
+        connectTimeout: 10000,
+        commandTimeout: 5000,
+        lazyConnect: false, // Connect immediately
+        keepAlive: 30000,
+        enableReadyCheck: true,
       });
 
-      this.redisClient.on('connect', () => {
+      this.redisClient.on('ready', () => {
         this.isConnected = true;
-        this.logger.log('Successfully connected to Redis');
+        console.log('✅ Redis: CONNECTED');
       });
 
       this.redisClient.on('error', (error: Error) => {
         this.isConnected = false;
-        this.logger.error(`Redis connection error: ${error.message}`);
+        console.log(`❌ Redis: ERROR - ${error.message}`);
       });
 
-      this.redisClient.on('reconnecting', () => {
-        this.logger.log('Reconnecting to Redis...');
+      this.redisClient.on('close', () => {
+        this.isConnected = false;
+        console.log('⚠️  Redis: DISCONNECTED');
       });
     } catch (error: any) {
-      this.logger.error(`Failed to initialize Redis client: ${error.message}`);
+      this.logger.error(`❌ Failed to initialize Redis client: ${error.message}`);
     }
   }
 
   async onModuleInit() {
-    // Test connection on startup
-    this.logger.debug(`onModuleInit: Redis client ${this.redisClient ? 'exists' : 'does not exist'}`);
-
-    if (this.redisClient) {
-      try {
-        this.logger.debug('Attempting to ping Redis server...');
-        await this.redisClient.ping();
-        this.logger.log('Redis connection test successful');
-        this.isConnected = true;
-      } catch (error: any) {
-        this.logger.error(`Redis connection test failed: ${error.message}`);
-        this.isConnected = false;
-      }
-    } else {
-      this.logger.warn('Redis client not initialized during module init');
+    if (!this.redisClient) {
+      return;
     }
 
-    this.logger.debug(`Redis connection status: ${this.isConnected ? 'connected' : 'disconnected'}`);
+    try {
+      await this.redisClient.ping();
+      this.isConnected = true;
+    } catch (error: any) {
+      this.isConnected = false;
+      console.log(`❌ Redis: CONNECTION FAILED - ${error.message}`);
+    }
   }
 
   async onModuleDestroy() {
@@ -80,9 +78,25 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    * Check if Redis is connected and available
    */
   isReady(): boolean {
-    const ready = this.redisClient && this.isConnected;
-    this.logger.debug(`Redis ready check: client=${!!this.redisClient}, connected=${this.isConnected}, ready=${ready}`);
+    const hasClient = !!this.redisClient;
+    const isConnected = this.isConnected;
+    const ready = hasClient && isConnected;
+
+    if (!ready) {
+      this.logger.debug(`🔍 Redis ready check: client=${hasClient}, connected=${isConnected}, ready=${ready}`);
+    }
+
     return ready;
+  }
+
+  /**
+   * Ping Redis server
+   */
+  async ping(): Promise<string> {
+    if (!this.redisClient) {
+      throw new Error('Redis client not initialized');
+    }
+    return this.redisClient.ping();
   }
 
   /**

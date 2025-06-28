@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
+import { CacheService, CacheTTL, CachePrefix } from './cache.service';
 import { CreateArtistDto, UpdateArtistDto, ArtistResponseDto } from '../dto/artist.dto';
 import { parse as csvParse } from 'csv-parse';
 import { stringify as csvStringify } from 'csv-stringify';
@@ -10,7 +11,10 @@ import { Prisma } from '@prisma/client';
 export class ArtistService {
   private readonly logger = new Logger(ArtistService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cacheService: CacheService,
+  ) {}
 
   async create(createArtistDto: CreateArtistDto): Promise<ArtistResponseDto> {
     // Check if artist with the same name already exists
@@ -40,51 +44,114 @@ export class ArtistService {
       data,
     });
 
+    // Invalidate artists list cache
+    await this.cacheService.deleteByPrefix(CachePrefix.ARTISTS);
+    this.logger.debug(`Invalidated artists list cache after creating artist ${artist.id}`);
+
     return artist;
   }
 
   async findAll(search?: string): Promise<ArtistResponseDto[]> {
-    if (search) {
-      const searchTerms = search.trim().split(/\s+/);
-      const searchConditions = [];
+    // Create cache key based on search parameter
+    const cacheKey = search
+      ? this.cacheService.createListKey(CachePrefix.ARTISTS, { search })
+      : this.cacheService.createListKey(CachePrefix.ARTISTS, {});
 
-      // For each search term, create fuzzy search conditions
-      for (const term of searchTerms) {
-        searchConditions.push({
-          OR: [
-            {
-              name: {
-                contains: term,
-                mode: Prisma.QueryMode.insensitive,
+    try {
+      return await this.cacheService.getOrSet(
+        cacheKey,
+        async () => {
+          this.logger.debug(`Cache miss for artists list with search: ${search || 'none'}`);
+
+          if (search) {
+            const searchTerms = search.trim().split(/\s+/);
+            const searchConditions = [];
+
+            // For each search term, create fuzzy search conditions
+            for (const term of searchTerms) {
+              searchConditions.push({
+                OR: [
+                  {
+                    name: {
+                      contains: term,
+                      mode: Prisma.QueryMode.insensitive,
+                    },
+                  },
+                  {
+                    bio: {
+                      contains: term,
+                      mode: Prisma.QueryMode.insensitive,
+                    },
+                  },
+                ],
+              });
+            }
+
+            const where = searchConditions.length === 1
+              ? searchConditions[0]
+              : { AND: searchConditions };
+
+            return this.prisma.artist.findMany({
+              where,
+              orderBy: {
+                name: 'asc',
               },
+            });
+          }
+
+          return this.prisma.artist.findMany({
+            orderBy: {
+              name: 'asc',
             },
-            {
-              bio: {
-                contains: term,
-                mode: Prisma.QueryMode.insensitive,
+          });
+        },
+        search ? CacheTTL.SHORT : CacheTTL.LONG // Shorter TTL for search results
+      );
+    } catch (error: any) {
+      this.logger.error(`Error fetching artists: ${error.message}`);
+
+      // Fallback to direct database query if cache fails
+      if (search) {
+        const searchTerms = search.trim().split(/\s+/);
+        const searchConditions = [];
+
+        for (const term of searchTerms) {
+          searchConditions.push({
+            OR: [
+              {
+                name: {
+                  contains: term,
+                  mode: Prisma.QueryMode.insensitive,
+                },
               },
-            },
-          ],
+              {
+                bio: {
+                  contains: term,
+                  mode: Prisma.QueryMode.insensitive,
+                },
+              },
+            ],
+          });
+        }
+
+        const where = searchConditions.length === 1
+          ? searchConditions[0]
+          : { AND: searchConditions };
+
+        return this.prisma.artist.findMany({
+          where,
+          orderBy: {
+            name: 'asc',
+          },
         });
       }
 
-      const where = searchConditions.length === 1
-        ? searchConditions[0]
-        : { AND: searchConditions };
-
       return this.prisma.artist.findMany({
-        where,
         orderBy: {
           name: 'asc',
         },
       });
     }
-
-    return this.prisma.artist.findMany({
-      orderBy: {
-        name: 'asc',
-      },
-    });
   }
 
   async findOne(id: string): Promise<ArtistResponseDto> {

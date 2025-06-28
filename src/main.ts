@@ -108,13 +108,18 @@ async function bootstrap() {
   const port = process.env.PORT ?? 3001;
   await app.listen(port);
 
-  // Minimal logging in production to save memory
-  if (process.env.NODE_ENV === 'production') {
-    console.log(`Server running on port ${port}`);
-  } else {
-    console.info(`Application is running on: ${await app.getUrl()}`);
-    console.info(`Swagger documentation available at: ${await app.getUrl()}/api/docs`);
+  // Show startup completion message
+  console.log('\n🎉 ===== CHORDS API STARTED SUCCESSFULLY =====');
+  console.log(`🚀 Server running on port: ${port}`);
+  console.log(`🌐 API URL: http://localhost:${port}`);
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`📚 Swagger docs: http://localhost:${port}/api/docs`);
+    console.log(`🏥 Health check: http://localhost:${port}/health`);
+    console.log(`🔧 Redis status: http://localhost:${port}/health/redis`);
   }
+
+  console.log('============================================\n');
 
   // Force garbage collection after startup
   if (global.gc) {

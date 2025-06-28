@@ -42,13 +42,20 @@ export enum CachePrefix {
 @Injectable()
 export class CacheService {
   private readonly logger = new Logger(CacheService.name);
-  private readonly enabled: boolean;
 
   constructor(private readonly redisService: RedisService) {
-    this.enabled = this.redisService.isReady();
-    if (!this.enabled) {
-      this.logger.warn('Redis is not available. Caching is disabled.');
+    this.logger.log('🔧 Cache service initialized');
+  }
+
+  /**
+   * Check if caching is enabled (Redis is available)
+   */
+  private isEnabled(): boolean {
+    const enabled = this.redisService.isReady();
+    if (!enabled) {
+      this.logger.debug('⚠️ Cache operation skipped - Redis not available');
     }
+    return enabled;
   }
 
   /**
@@ -57,7 +64,7 @@ export class CacheService {
    * @returns The cached value or null if not found
    */
   async get<T>(key: string): Promise<T | null> {
-    if (!this.enabled) {
+    if (!this.isEnabled()) {
       return null;
     }
     return this.redisService.get<T>(key);
@@ -70,7 +77,7 @@ export class CacheService {
    * @param ttl The time-to-live in seconds
    */
   async set(key: string, value: any, ttl: number = CacheTTL.MEDIUM): Promise<void> {
-    if (!this.enabled) {
+    if (!this.isEnabled()) {
       return;
     }
     await this.redisService.set(key, value, ttl);
@@ -81,7 +88,7 @@ export class CacheService {
    * @param key The cache key
    */
   async delete(key: string): Promise<void> {
-    if (!this.enabled) {
+    if (!this.isEnabled()) {
       return;
     }
     await this.redisService.delete(key);
@@ -92,7 +99,7 @@ export class CacheService {
    * @param prefix The key prefix
    */
   async deleteByPrefix(prefix: string): Promise<void> {
-    if (!this.enabled) {
+    if (!this.isEnabled()) {
       return;
     }
     await this.redisService.deleteByPattern(`${prefix}*`);
@@ -104,7 +111,7 @@ export class CacheService {
    * @returns True if the key exists, false otherwise
    */
   async exists(key: string): Promise<boolean> {
-    if (!this.enabled) {
+    if (!this.isEnabled()) {
       return false;
     }
     return this.redisService.exists(key);
@@ -122,7 +129,7 @@ export class CacheService {
     factory: () => Promise<T>,
     ttl: number = CacheTTL.MEDIUM
   ): Promise<T> {
-    if (!this.enabled) {
+    if (!this.isEnabled()) {
       return factory();
     }
 
@@ -169,18 +176,18 @@ export class CacheService {
    * @returns The new counter value
    */
   async increment(key: string, ttl: number = CacheTTL.MEDIUM): Promise<number> {
-    if (!this.enabled) {
+    if (!this.isEnabled()) {
       return 0;
     }
     return this.redisService.increment(key, ttl);
   }
 
   /**
-   * Check if caching is enabled
+   * Check if caching is enabled (public method)
    * @returns True if caching is enabled, false otherwise
    */
-  isEnabled(): boolean {
-    return this.enabled;
+  isCacheEnabled(): boolean {
+    return this.isEnabled();
   }
 
   /**
@@ -212,7 +219,7 @@ export class CacheService {
    * Warm up cache with frequently accessed data
    */
   async warmUpCache(): Promise<void> {
-    if (!this.enabled) {
+    if (!this.isEnabled()) {
       return;
     }
 
@@ -234,7 +241,7 @@ export class CacheService {
    * @returns Array of cached values
    */
   async getMultiple<T>(keys: string[]): Promise<(T | null)[]> {
-    if (!this.enabled || keys.length === 0) {
+    if (!this.isEnabled() || keys.length === 0) {
       return keys.map(() => null);
     }
 
@@ -252,7 +259,7 @@ export class CacheService {
    * @param keyValuePairs Array of key-value pairs with TTL
    */
   async setMultiple(keyValuePairs: Array<{key: string, value: any, ttl?: number}>): Promise<void> {
-    if (!this.enabled || keyValuePairs.length === 0) {
+    if (!this.isEnabled() || keyValuePairs.length === 0) {
       return;
     }
 

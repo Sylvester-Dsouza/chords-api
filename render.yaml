@@ -29,4 +29,7 @@ services:
         sync: false
       - key: REDIS_URL
         sync: false
+        # Redis URL for caching (Upstash Redis recommended)
+        # Format: redis://username:password@host:port
+        # Example: redis://default:password@redis-12345.upstash.io:6379
     autoDeploy: true

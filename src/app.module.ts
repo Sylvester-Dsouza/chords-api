@@ -45,6 +45,7 @@ import { HomeSectionModule } from './modules/home-section.module';
 import { CoursesModule } from './modules/courses.module';
 import { VocalModule } from './modules/vocal.module';
 import { CommunityModule } from './modules/community.module';
+import { CacheModule } from './modules/cache.module';
 import { HealthController } from './controllers/health/health.controller';
 
 import { SetlistService } from './services/setlist.service';
@@ -99,6 +100,7 @@ import { BannerItemService } from './services/banner-item.service';
     CoursesModule,
     VocalModule,
     CommunityModule,
+    CacheModule,
     HealthModule
   ],
   controllers: [
