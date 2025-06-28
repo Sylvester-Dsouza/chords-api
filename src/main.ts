@@ -8,67 +8,58 @@ import { ValidationExceptionFilter } from './filters/validation-exception.filter
 import compression from 'compression';
 
 async function bootstrap() {
-  // Initialize Firebase Admin SDK
-  const firebaseInitialized = initializeFirebase();
-  console.log(`Firebase initialization result: ${firebaseInitialized ? 'SUCCESS' : 'FAILED'}`);
-
-  // If Firebase initialization failed in production, log a warning but continue
-  if (!firebaseInitialized && process.env.NODE_ENV === 'production') {
-    console.error('WARNING: Firebase initialization failed in production environment. Authentication features may not work correctly.');
+  // Set Node.js memory optimization flags
+  if (process.env.NODE_ENV === 'production') {
+    process.env.NODE_OPTIONS = '--max-old-space-size=400 --optimize-for-size';
   }
 
-  // Configure logger to show only errors and warnings in production
+  // Initialize Firebase Admin SDK only if needed
+  let firebaseInitialized = false;
+  if (process.env.FIREBASE_PROJECT_ID) {
+    firebaseInitialized = initializeFirebase();
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Firebase initialization result: ${firebaseInitialized ? 'SUCCESS' : 'FAILED'}`);
+    }
+  }
+
+  // Configure logger for minimal memory usage in production
   const app = await NestFactory.create(AppModule, {
-    logger: process.env.NODE_ENV === 'production'
-      ? ['error', 'warn']
-      : process.env.MINIMAL_LOGS === 'true'
-        ? ['error', 'warn']
-        : ['log', 'error', 'warn', 'debug', 'verbose'],
+    logger: process.env.NODE_ENV === 'production' ? ['error'] : ['error', 'warn'],
+    bufferLogs: false, // Disable log buffering to save memory
+    abortOnError: false, // Don't abort on errors to save memory
   });
   
-  // Enable compression to reduce response size and improve performance
-  app.use(compression());
+  // Enable compression with memory-efficient settings
+  app.use(compression({
+    level: 6, // Balanced compression level
+    threshold: 1024, // Only compress responses > 1KB
+    memLevel: 7, // Reduce memory usage
+  }));
 
-  // Enable CORS with specific configuration
-  if (process.env.NODE_ENV === 'production') {
-    // In production, use a specific list of allowed origins
-    app.enableCors({
-      origin: [
-        'https://chords-admin.vercel.app',
-        'https://admin.yourapp.com',  // Add your production admin URL here
-        'https://app.yourapp.com'     // Add your production app URL here
-      ],
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      credentials: true,
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-      exposedHeaders: ['Authorization'],
-      maxAge: 7200 // 2 hours
-    });
-    console.info('CORS enabled for specific origins (production mode)');
-    console.info('Allowed origins:', ['https://chords-admin.vercel.app', 'https://admin.yourapp.com', 'https://app.yourapp.com']);
+  // Enable CORS with minimal configuration for memory efficiency
+  app.enableCors({
+    origin: process.env.NODE_ENV === 'production'
+      ? ['https://chords-admin.vercel.app']
+      : true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    maxAge: 86400 // 24 hours - cache preflight requests
+  });
 
-  } else {
-    // In development, allow all origins
-    app.enableCors({
-      origin: true, // Allow all origins in development
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      credentials: true,
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-    });
-    console.info('CORS enabled for all origins (development mode)');
-  }
-
-  // Enable validation
+  // Enable validation with memory optimization
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
     forbidNonWhitelisted: true,
     transform: true,
-    // Make validation errors more detailed
-    validationError: { target: false, value: true },
+    disableErrorMessages: process.env.NODE_ENV === 'production', // Reduce memory in prod
+    validationError: { target: false, value: false }, // Reduce memory usage
   }));
 
-  // Register validation exception filter
-  app.useGlobalFilters(new ValidationExceptionFilter());
+  // Register validation exception filter only in development
+  if (process.env.NODE_ENV !== 'production') {
+    app.useGlobalFilters(new ValidationExceptionFilter());
+  }
 
   // Set global prefix but exclude legacy routes
   app.setGlobalPrefix('api', {
@@ -98,33 +89,36 @@ async function bootstrap() {
     ],
   });
 
-  // Setup Swagger documentation
-  const config = new DocumentBuilder()
-    .setTitle('Chords App API')
-    .setDescription('API for Christian song chords application')
-    .setVersion('1.0')
-    .addTag('users', 'User management endpoints')
-    .addTag('customers', 'Customer management endpoints')
-    .addTag('songs', 'Song management endpoints')
-    .addTag('firebase-auth', 'Firebase authentication endpoints')
-    .addTag('upload', 'File upload endpoints')
-    .addBearerAuth()
-    .build();
+  // Setup Swagger documentation only in development to save memory
+  if (process.env.NODE_ENV !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('Chords App API')
+      .setDescription('API for Christian song chords application')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   // Configure middleware
   configureMiddleware(app);
 
-  const port = process.env.PORT ?? 3001; // Use port 3001 by default
+  const port = process.env.PORT ?? 3001;
   await app.listen(port);
-  // Using console.info is allowed by our ESLint rules
-  if (process.env.MINIMAL_LOGS !== 'true') {
+
+  // Minimal logging in production to save memory
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`Server running on port ${port}`);
+  } else {
     console.info(`Application is running on: ${await app.getUrl()}`);
     console.info(`Swagger documentation available at: ${await app.getUrl()}/api/docs`);
-  } else {
-    console.info(`Server running on port ${port}`);
+  }
+
+  // Force garbage collection after startup
+  if (global.gc) {
+    global.gc();
   }
 }
 bootstrap();
