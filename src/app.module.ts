@@ -37,6 +37,8 @@ import { AuthModule } from './modules/auth.module';
 import { SupabaseModule } from './modules/supabase.module';
 import { UploadModule } from './modules/upload.module';
 import { SongRequestModule } from './modules/song-request.module';
+import { FeatureRequestModule } from './modules/feature-request.module';
+import { MediaModule } from './modules/media.module';
 import { NotificationModule } from './modules/notification.module';
 import { HealthModule } from './health/health.module';
 import { CommentModule } from './modules/comment.module';
@@ -94,6 +96,8 @@ import { BannerItemService } from './services/banner-item.service';
     SupabaseModule,
     UploadModule,
     SongRequestModule,
+    FeatureRequestModule,
+    MediaModule,
     NotificationModule,
     CommentModule,
     SongRatingModule,

@@ -70,6 +70,8 @@ model Customer {
   transactions       Transaction[]
   songRequests       SongRequest[]
   songRequestUpvotes SongRequestUpvote[]
+  featureRequests    FeatureRequest[]
+  featureRequestUpvotes FeatureRequestUpvote[]
   deviceTokens       DeviceToken[]
   notifications      Notification[]
   notificationHistory NotificationHistory[]
@@ -696,6 +698,41 @@ model SongRequestUpvote {
 
   @@unique([songRequestId, customerId])
   @@map("SongRequestUpvote")
+}
+
+// Feature Request model
+model FeatureRequest {
+  id          String   @id @default(uuid())
+  title       String
+  description String   @db.Text
+  category    String?  // UI/UX, Performance, New Feature, Bug Fix, etc.
+  priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  status      String   @default("PENDING") // PENDING, UNDER_REVIEW, IN_PROGRESS, COMPLETED, REJECTED
+  upvotes     Int      @default(0)
+  customerId  String   @map("customerId")
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+
+  // Relations
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  upvotedBy   FeatureRequestUpvote[]
+
+  @@map("FeatureRequest")
+}
+
+// Feature Request Upvote model
+model FeatureRequestUpvote {
+  id               String         @id @default(uuid())
+  featureRequestId String         @map("featureRequestId")
+  customerId       String         @map("customerId")
+  createdAt        DateTime       @default(now()) @map("createdAt")
+
+  // Relations
+  featureRequest   FeatureRequest @relation(fields: [featureRequestId], references: [id], onDelete: Cascade)
+  customer         Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([featureRequestId, customerId])
+  @@map("FeatureRequestUpvote")
 }
 
 // Authentication tokens for refresh functionality
