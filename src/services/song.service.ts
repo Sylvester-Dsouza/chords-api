@@ -4,6 +4,7 @@ import { CacheService, CachePrefix, CacheTTL } from './cache.service';
 import { CreateSongDto, UpdateSongDto, SongResponseDto } from '../dto/song.dto';
 import { ArtistResponseDto } from '../dto/artist.dto';
 import { LanguageResponseDto } from '../dto/language.dto';
+import { KaraokeResponseDto } from '../dto/karaoke.dto';
 import { Song } from '@prisma/client';
 import { parse as csvParse } from 'csv-parse';
 import { stringify as csvStringify } from 'csv-stringify';
@@ -178,6 +179,7 @@ export class SongService {
             include: {
               artist: true,
               language: true,
+              karaoke: true,
             },
             orderBy: {
               title: 'asc',
@@ -253,6 +255,7 @@ export class SongService {
         include: {
           artist: true,
           language: true,
+          karaoke: true,
         },
         orderBy: {
           title: 'asc',
@@ -278,6 +281,7 @@ export class SongService {
         include: {
           artist: true,
           language: true,
+          karaoke: true,
         },
         orderBy: {
           updatedAt: 'desc', // Most recently updated first
@@ -445,6 +449,7 @@ export class SongService {
                   }
                 }
               },
+              karaoke: true, // Include karaoke relationship
             },
             orderBy,
             skip,
@@ -501,6 +506,28 @@ export class SongService {
             dto.updatedAt = song.updatedAt;
             dto.metaTitle = song.metaTitle;
             dto.metaDescription = song.metaDescription;
+
+            // Map karaoke data if available
+            if (song.karaoke) {
+              const karaokeDto = new KaraokeResponseDto();
+              karaokeDto.id = song.karaoke.id;
+              karaokeDto.songId = song.karaoke.songId;
+              karaokeDto.fileUrl = song.karaoke.fileUrl;
+              karaokeDto.fileSize = song.karaoke.fileSize;
+              karaokeDto.duration = song.karaoke.duration;
+              karaokeDto.key = song.karaoke.key;
+              karaokeDto.uploadedBy = song.karaoke.uploadedBy;
+              karaokeDto.uploadedAt = song.karaoke.uploadedAt;
+              karaokeDto.updatedAt = song.karaoke.updatedAt;
+              karaokeDto.version = song.karaoke.version;
+              karaokeDto.status = song.karaoke.status;
+              karaokeDto.quality = song.karaoke.quality;
+              karaokeDto.notes = song.karaoke.notes;
+              dto.karaoke = karaokeDto;
+            } else {
+              dto.karaoke = null;
+            }
+
             return dto;
           });
 
@@ -603,6 +630,7 @@ export class SongService {
         include: {
           artist: true,
           language: true,
+          karaoke: true,
         },
         orderBy,
         skip,
@@ -630,7 +658,7 @@ export class SongService {
 
     try {
       // Try to get from cache first
-      return await this.cacheService.getOrSet(
+      const song = await this.cacheService.getOrSet(
         cacheKey,
         async () => {
           this.logger.debug(`Cache miss for song ${id}, fetching from database`);
@@ -639,6 +667,12 @@ export class SongService {
             include: {
               artist: true,
               language: true,
+              karaoke: true,
+              songTags: {
+                include: {
+                  tag: true,
+                },
+              },
             },
           });
 
@@ -650,6 +684,9 @@ export class SongService {
         },
         CacheTTL.LONG // Songs don't change often
       );
+
+      // Map to DTO
+      return this.mapSongToDto(song);
     } catch (error: any) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -662,6 +699,12 @@ export class SongService {
         include: {
           artist: true,
           language: true,
+          karaoke: true,
+          songTags: {
+            include: {
+              tag: true,
+            },
+          },
         },
       });
 
@@ -669,8 +712,87 @@ export class SongService {
         throw new NotFoundException(`Song with ID ${id} not found`);
       }
 
-      return song;
+      // Map to DTO
+      return this.mapSongToDto(song);
     }
+  }
+
+  /**
+   * Helper method to map a Prisma song object to SongResponseDto
+   */
+  private mapSongToDto(song: any): SongResponseDto {
+    const dto = new SongResponseDto();
+
+    dto.id = song.id;
+    dto.title = song.title;
+    dto.artistId = song.artistId;
+
+    // Map artist data if available
+    if (song.artist) {
+      const artistDto = new ArtistResponseDto();
+      artistDto.id = song.artist.id;
+      artistDto.name = song.artist.name;
+      dto.artist = artistDto;
+    }
+
+    dto.languageId = song.languageId;
+
+    // Map language data if available
+    if (song.language) {
+      const languageDto = new LanguageResponseDto();
+      languageDto.id = song.language.id;
+      languageDto.name = song.language.name;
+      dto.language = languageDto;
+    } else {
+      dto.language = null;
+    }
+
+    dto.key = song.key;
+    dto.tempo = song.tempo;
+    dto.timeSignature = song.timeSignature;
+    dto.difficulty = song.difficulty;
+    dto.chordSheet = song.chordSheet || '';
+    dto.imageUrl = song.imageUrl;
+    dto.officialVideoUrl = song.officialVideoUrl;
+    dto.tutorialVideoUrl = song.tutorialVideoUrl;
+    dto.capo = song.capo || 0;
+
+    // Map tags from songTags relation
+    dto.tags = song.songTags ?
+      song.songTags.map((tagRelation: { tag: { name: string } }) => tagRelation.tag.name) :
+      [];
+
+    dto.status = song.status as 'DRAFT' | 'ACTIVE';
+    dto.viewCount = song.viewCount;
+    dto.uniqueViewers = song.uniqueViewers;
+    dto.lastViewed = song.lastViewed;
+    dto.createdAt = song.createdAt;
+    dto.updatedAt = song.updatedAt;
+    dto.metaTitle = song.metaTitle;
+    dto.metaDescription = song.metaDescription;
+
+    // Map karaoke data if available
+    if (song.karaoke) {
+      const karaokeDto = new KaraokeResponseDto();
+      karaokeDto.id = song.karaoke.id;
+      karaokeDto.songId = song.karaoke.songId;
+      karaokeDto.fileUrl = song.karaoke.fileUrl;
+      karaokeDto.fileSize = song.karaoke.fileSize;
+      karaokeDto.duration = song.karaoke.duration;
+      karaokeDto.key = song.karaoke.key;
+      karaokeDto.uploadedBy = song.karaoke.uploadedBy;
+      karaokeDto.uploadedAt = song.karaoke.uploadedAt;
+      karaokeDto.updatedAt = song.karaoke.updatedAt;
+      karaokeDto.version = song.karaoke.version;
+      karaokeDto.status = song.karaoke.status;
+      karaokeDto.quality = song.karaoke.quality;
+      karaokeDto.notes = song.karaoke.notes;
+      dto.karaoke = karaokeDto;
+    } else {
+      dto.karaoke = null;
+    }
+
+    return dto;
   }
 
   async update(id: string, updateSongDto: UpdateSongDto): Promise<SongResponseDto> {

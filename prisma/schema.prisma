@@ -246,6 +246,7 @@ model Song {
   // Video URLs
   officialVideoUrl String? @map("officialVideoUrl") // URL to the official music video
   tutorialVideoUrl String? @map("tutorialVideoUrl") // URL to a tutorial video showing how to play the song
+
   // SEO fields
   metaTitle     String?    @map("metaTitle") @db.Text // Custom meta title for SEO
   metaDescription String?   @map("metaDescription") @db.Text // Custom meta description for SEO
@@ -273,6 +274,7 @@ model Song {
   comments    Comment[]
   ratings     SongRating[]
   lessons     Lesson[] // Lessons that use this song for practice
+  karaoke     Karaoke?
 
   // Performance indexes
   @@index([title])
@@ -311,6 +313,35 @@ model SongRating {
   @@index([songId])
   @@index([customerId])
   @@map("SongRating")
+}
+
+// Karaoke model for storing karaoke tracks for songs
+model Karaoke {
+  id          String   @id @default(uuid())
+  songId      String   @unique @map("songId") // One-to-one relationship with Song
+  fileUrl     String   @map("fileUrl") // URL to karaoke backing track in Supabase Storage
+  fileSize    Int?     @map("fileSize") // File size in bytes
+  duration    Int?     @map("duration") // Duration in seconds
+  key         String?  @map("key") // Original key for karaoke track
+  uploadedBy  String?  @map("uploadedBy") // User ID who uploaded the karaoke
+  uploadedAt  DateTime @default(now()) @map("uploadedAt") // When karaoke was uploaded
+  updatedAt   DateTime @updatedAt @map("updatedAt") // When karaoke was last updated
+
+  // Future extensibility fields
+  version     Int      @default(1) @map("version") // Version number for multiple versions
+  status      String   @default("ACTIVE") @map("status") // ACTIVE, INACTIVE, PROCESSING
+  quality     String?  @map("quality") // HIGH, MEDIUM, LOW quality indicator
+  notes       String?  @map("notes") @db.Text // Admin notes about the karaoke
+
+  // Relations
+  song        Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  // Performance indexes
+  @@index([songId])
+  @@index([uploadedAt])
+  @@index([status])
+  @@index([uploadedBy])
+  @@map("Karaoke")
 }
 
 // Junction table for Song-Tag many-to-many relationship

@@ -46,6 +46,7 @@ import { CoursesModule } from './modules/courses.module';
 import { VocalModule } from './modules/vocal.module';
 import { CommunityModule } from './modules/community.module';
 import { CacheModule } from './modules/cache.module';
+import { KaraokeModule } from './modules/karaoke.module';
 import { HealthController } from './controllers/health/health.controller';
 
 import { SetlistService } from './services/setlist.service';
@@ -101,6 +102,7 @@ import { BannerItemService } from './services/banner-item.service';
     VocalModule,
     CommunityModule,
     CacheModule,
+    KaraokeModule,
     HealthModule
   ],
   controllers: [

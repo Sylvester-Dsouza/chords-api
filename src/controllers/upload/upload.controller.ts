@@ -47,14 +47,14 @@ export class UploadController {
     this.logger.log(`Uploading file to folder: ${folder}`);
 
     // Validate folder
-    const allowedFolders = ['song-cover', 'artist-cover', 'collection-cover', 'banner-image', 'vocals'];
+    const allowedFolders = ['song-cover', 'artist-cover', 'collection-cover', 'banner-image', 'vocals', 'karaoke'];
     if (!allowedFolders.includes(folder)) {
       throw new BadRequestException(`Invalid folder. Must be one of: ${allowedFolders.join(', ')}`);
     }
 
     // Validate file type based on folder
-    if (folder === 'vocals') {
-      // Audio files for vocals folder
+    if (folder === 'vocals' || folder === 'karaoke') {
+      // Audio files for vocals and karaoke folders
       const allowedAudioTypes = [
         'audio/mpeg',
         'audio/mp3',
@@ -62,10 +62,11 @@ export class UploadController {
         'audio/ogg',
         'audio/aac',
         'audio/m4a',
+        'audio/mp4',
         'audio/webm'
       ];
       if (!allowedAudioTypes.includes(file.mimetype)) {
-        throw new BadRequestException(`Only audio files are allowed for vocals folder. Allowed types: ${allowedAudioTypes.join(', ')}`);
+        throw new BadRequestException(`Only audio files are allowed for ${folder} folder. Allowed types: ${allowedAudioTypes.join(', ')}`);
       }
     } else {
       // Image files for other folders
@@ -76,7 +77,7 @@ export class UploadController {
 
     // Validate file size based on folder
     let maxSize: number;
-    if (folder === 'vocals') {
+    if (folder === 'vocals' || folder === 'karaoke') {
       maxSize = 50 * 1024 * 1024; // 50MB for audio files
     } else {
       maxSize = 5 * 1024 * 1024; // 5MB for image files
