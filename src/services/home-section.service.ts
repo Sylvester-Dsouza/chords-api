@@ -472,7 +472,202 @@ export class HomeSectionService {
     return artists;
   }
 
-  // Get all items for a specific section by ID for the mobile app
+  // Get ALL collections for a section (without itemCount limit) - for "See all" functionality
+  private async getAllCollectionsForSection(section: HomeSection): Promise<any[]> {
+    let collections;
+
+    console.log(`🔍 getAllCollectionsForSection - Section: ${section.title}`);
+    console.log(`📊 itemIds:`, section.itemIds);
+    console.log(`📊 itemIds length:`, section.itemIds?.length || 0);
+
+    if (section.itemIds && section.itemIds.length > 0) {
+      console.log(`📝 Using specific collection IDs: ${section.itemIds.join(', ')}`);
+
+      // Use specific collection IDs if provided - get ALL of them
+      collections = await this.prisma.collection.findMany({
+        where: {
+          id: { in: section.itemIds },
+          isActive: true,
+          isPublic: true
+        },
+        // No take limit - get all items
+        include: {
+          collectionTags: {
+            include: {
+              tag: true
+            }
+          }
+        }
+      });
+
+      console.log(`📊 Found ${collections.length} collections from database`);
+      console.log(`📊 Collection names:`, collections.map(c => c.name));
+
+      // Sort collections in the same order as itemIds
+      collections.sort((a, b) => {
+        return section.itemIds.indexOf(a.id) - section.itemIds.indexOf(b.id);
+      });
+    } else {
+      // Apply filter based on filterType - get all matching items
+      let where: any = {
+        isActive: true,
+        isPublic: true
+      };
+
+      if (section.filterType === 'seasonal') {
+        where.collectionTags = {
+          some: {
+            tag: {
+              name: { contains: 'seasonal', mode: 'insensitive' }
+            }
+          }
+        };
+      }
+
+      collections = await this.prisma.collection.findMany({
+        where,
+        // No take limit - get all items
+        orderBy: {
+          createdAt: 'desc'
+        },
+        include: {
+          collectionTags: {
+            include: {
+              tag: true
+            }
+          }
+        }
+      });
+    }
+
+    return collections;
+  }
+
+  // Get ALL songs for a section (without itemCount limit) - for "See all" functionality
+  private async getAllSongsForSection(section: HomeSection): Promise<any[]> {
+    let songs;
+
+    console.log(`🔍 getAllSongsForSection - Section: ${section.title}`);
+    console.log(`📊 itemIds:`, section.itemIds);
+    console.log(`📊 itemIds length:`, section.itemIds?.length || 0);
+
+    if (section.itemIds && section.itemIds.length > 0) {
+      console.log(`📝 Using specific song IDs: ${section.itemIds.join(', ')}`);
+
+      // Use specific song IDs if provided - get ALL of them
+      songs = await this.prisma.song.findMany({
+        where: {
+          id: { in: section.itemIds }
+        },
+        // No take limit - get all items
+        include: {
+          artist: true,
+          songTags: {
+            include: {
+              tag: true
+            }
+          }
+        }
+      });
+
+      console.log(`📊 Found ${songs.length} songs from database`);
+      console.log(`📊 Song titles:`, songs.map(s => s.title));
+
+      // Sort songs in the same order as itemIds
+      songs.sort((a, b) => {
+        return section.itemIds.indexOf(a.id) - section.itemIds.indexOf(b.id);
+      });
+    } else {
+      // Apply filter based on filterType - get all matching items
+      let where: any = {};
+      let orderBy: any = { createdAt: 'desc' };
+
+      if (section.filterType === 'trending') {
+        orderBy = { viewCount: 'desc' };
+      } else if (section.filterType === 'beginner') {
+        where.difficulty = 'BEGINNER';
+      }
+
+      songs = await this.prisma.song.findMany({
+        where,
+        // No take limit - get all items
+        orderBy,
+        include: {
+          artist: true,
+          songTags: {
+            include: {
+              tag: true
+            }
+          }
+        }
+      });
+    }
+
+    return songs;
+  }
+
+  // Get ALL artists for a section (without itemCount limit) - for "See all" functionality
+  private async getAllArtistsForSection(section: HomeSection): Promise<any[]> {
+    let artists;
+
+    console.log(`🔍 getAllArtistsForSection - Section: ${section.title}`);
+    console.log(`📊 itemIds:`, section.itemIds);
+    console.log(`📊 itemIds length:`, section.itemIds?.length || 0);
+
+    if (section.itemIds && section.itemIds.length > 0) {
+      console.log(`📝 Using specific artist IDs: ${section.itemIds.join(', ')}`);
+
+      // Use specific artist IDs if provided - get ALL of them
+      artists = await this.prisma.artist.findMany({
+        where: {
+          id: { in: section.itemIds }
+        },
+        // No take limit - get all items
+        include: {
+          artistTags: {
+            include: {
+              tag: true
+            }
+          }
+        }
+      });
+
+      console.log(`📊 Found ${artists.length} artists from database`);
+      console.log(`📊 Artist names:`, artists.map(a => a.name));
+
+      // Sort artists in the same order as itemIds
+      artists.sort((a, b) => {
+        return section.itemIds.indexOf(a.id) - section.itemIds.indexOf(b.id);
+      });
+    } else {
+      // Apply filter based on filterType - get all matching items
+      let where: any = {};
+      let orderBy: any = { createdAt: 'desc' };
+
+      if (section.filterType === 'popular') {
+        orderBy = {
+          viewCount: 'desc'
+        };
+      }
+
+      artists = await this.prisma.artist.findMany({
+        where,
+        // No take limit - get all items
+        orderBy,
+        include: {
+          artistTags: {
+            include: {
+              tag: true
+            }
+          }
+        }
+      });
+    }
+
+    return artists;
+  }
+
+  // Get all items for a specific section by ID for the mobile app (without itemCount limit)
   async getSectionItemsForApp(id: string): Promise<any[]> {
     // Find the section
     const section = await this.prisma.homeSection.findUnique({
@@ -483,20 +678,34 @@ export class HomeSectionService {
       throw new NotFoundException(`Home section with ID ${id} not found`);
     }
 
-    // Get the items based on section type
+    console.log(`🔍 getSectionItemsForApp - Section: ${section.title}`);
+    console.log(`📊 Section details:`, {
+      id: section.id,
+      type: section.type,
+      itemCount: section.itemCount,
+      itemIds: section.itemIds,
+      itemIdsLength: section.itemIds?.length || 0
+    });
+
+    // Get ALL items based on section type (without itemCount limit)
+    let items = [];
     switch (section.type) {
       case SectionType.COLLECTIONS:
-        return this.getCollectionsForSection(section);
+        items = await this.getAllCollectionsForSection(section);
+        break;
       case SectionType.SONGS:
-        return this.getSongsForSection(section);
+        items = await this.getAllSongsForSection(section);
+        break;
       case SectionType.SONG_LIST:
         // SONG_LIST uses the same data as SONGS, just displayed differently in the app
-        return this.getSongsForSection(section);
+        items = await this.getAllSongsForSection(section);
+        break;
       case SectionType.ARTISTS:
-        return this.getArtistsForSection(section);
+        items = await this.getAllArtistsForSection(section);
+        break;
       case SectionType.BANNER:
         // For banner sections, get the banner items from the database
-        return this.prisma.bannerItem.findMany({
+        items = await this.prisma.bannerItem.findMany({
           where: {
             homeSectionId: section.id,
             isActive: true
@@ -505,9 +714,13 @@ export class HomeSectionService {
             order: 'asc'
           }
         });
+        break;
       default:
-        return [];
+        items = [];
     }
+
+    console.log(`✅ getSectionItemsForApp - Returning ${items.length} items for section ${section.title}`);
+    return items;
   }
 
   // Helper method to get the highest order value

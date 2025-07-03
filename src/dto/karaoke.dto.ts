@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsOptional, IsInt, Min, IsBoolean, IsUUID } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { SongResponseDto } from './song.dto';
 
 export class KaraokeUploadDto {
@@ -139,12 +139,14 @@ export class KaraokeListQueryDto {
   sort?: 'popular' | 'recent' | 'title' | 'artist';
 
   @ApiProperty({ example: 1, description: 'Page number', required: false, default: 1 })
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @IsOptional()
   page?: number;
 
   @ApiProperty({ example: 20, description: 'Number of items per page', required: false, default: 20 })
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @IsOptional()
