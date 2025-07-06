@@ -1,7 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsInt, Min, IsBoolean, IsUUID } from 'class-validator';
+import { IsString, IsOptional, IsInt, Min, IsBoolean, IsUUID, IsEnum, IsNumber, Max, ValidateNested, IsArray } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { SongResponseDto } from './song.dto';
+
+// Enum for track types
+export enum TrackType {
+  VOCALS = 'VOCALS',
+  BASS = 'BASS',
+  DRUMS = 'DRUMS',
+  OTHER = 'OTHER'
+}
 
 export class KaraokeUploadDto {
   @ApiProperty({ example: 'G', description: 'Original key for karaoke track', required: false })
@@ -31,6 +38,48 @@ export class KaraokeUploadDto {
   @IsString()
   @IsOptional()
   notes?: string;
+}
+
+// Individual Karaoke Track DTOs (moved here to avoid forward reference)
+export class KaraokeTrackResponseDto {
+  @ApiProperty({ description: 'Track ID' })
+  id: string = '';
+
+  @ApiProperty({ description: 'Karaoke ID' })
+  karaokeId: string = '';
+
+  @ApiProperty({ example: 'VOCALS', description: 'Track type', enum: TrackType })
+  trackType: TrackType = TrackType.VOCALS;
+
+  @ApiProperty({ example: 'https://storage.supabase.co/bucket/karaoke/vocals.mp3', description: 'URL to track file' })
+  fileUrl: string = '';
+
+  @ApiProperty({ example: 2621440, description: 'Track file size in bytes' })
+  fileSize?: number | null = null;
+
+  @ApiProperty({ example: 240, description: 'Track duration in seconds' })
+  duration?: number | null = null;
+
+  @ApiProperty({ example: 1.0, description: 'Default volume level (0.0 to 1.0)' })
+  volume: number = 1.0;
+
+  @ApiProperty({ example: false, description: 'Whether track is muted by default' })
+  isMuted: boolean = false;
+
+  @ApiProperty({ example: '2023-01-01T00:00:00Z', description: 'When track was uploaded' })
+  uploadedAt: Date = new Date();
+
+  @ApiProperty({ example: '2023-01-01T00:00:00Z', description: 'When track was last updated' })
+  updatedAt: Date = new Date();
+
+  @ApiProperty({ example: 'HIGH', description: 'Quality indicator', enum: ['HIGH', 'MEDIUM', 'LOW'] })
+  quality?: string | null = null;
+
+  @ApiProperty({ example: 'Clean vocal separation', description: 'Admin notes about this track' })
+  notes?: string | null = null;
+
+  @ApiProperty({ example: 'ACTIVE', description: 'Track status', enum: ['ACTIVE', 'INACTIVE', 'PROCESSING'] })
+  status: string = 'ACTIVE';
 }
 
 export class KaraokeResponseDto {
@@ -72,6 +121,9 @@ export class KaraokeResponseDto {
 
   @ApiProperty({ example: 'Professional studio recording', description: 'Admin notes about the karaoke' })
   notes?: string | null = null;
+
+  @ApiProperty({ description: 'Individual karaoke tracks', type: [KaraokeTrackResponseDto] })
+  tracks?: KaraokeTrackResponseDto[] = [];
 }
 
 export class KaraokeSongResponseDto {
@@ -222,4 +274,92 @@ export class KaraokeStatsResponseDto {
 
   @ApiProperty({ description: 'Recently added karaoke songs' })
   recentSongs: KaraokeSongResponseDto[] = [];
+}
+
+// Individual Karaoke Track DTOs
+export class KaraokeTrackUploadDto {
+  @ApiProperty({ example: 'VOCALS', description: 'Track type', enum: TrackType })
+  @IsEnum(TrackType)
+  trackType: TrackType = TrackType.VOCALS;
+
+  @ApiProperty({ example: 1.0, description: 'Default volume level (0.0 to 1.0)', required: false })
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  @IsOptional()
+  volume?: number;
+
+  @ApiProperty({ example: false, description: 'Whether track is muted by default', required: false })
+  @IsBoolean()
+  @IsOptional()
+  isMuted?: boolean;
+
+  @ApiProperty({ example: 'HIGH', description: 'Quality indicator', enum: ['HIGH', 'MEDIUM', 'LOW'], required: false })
+  @IsString()
+  @IsOptional()
+  quality?: string;
+
+  @ApiProperty({ example: 'Clean vocal separation', description: 'Admin notes about this track', required: false })
+  @IsString()
+  @IsOptional()
+  notes?: string;
+}
+
+// Multi-track upload DTO
+export class MultiTrackKaraokeUploadDto {
+  @ApiProperty({ example: 'G', description: 'Original key for karaoke tracks', required: false })
+  @IsString()
+  @IsOptional()
+  key?: string;
+
+  @ApiProperty({ example: 240, description: 'Karaoke duration in seconds', required: false })
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '' || value === 'undefined') {
+      return undefined;
+    }
+    const num = parseInt(value, 10);
+    return isNaN(num) || num < 0 ? undefined : num;
+  })
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  duration?: number;
+
+  @ApiProperty({ example: 'HIGH', description: 'Quality indicator', enum: ['HIGH', 'MEDIUM', 'LOW'], required: false })
+  @IsString()
+  @IsOptional()
+  quality?: string;
+
+  @ApiProperty({ example: 'Professional studio recording', description: 'Admin notes about the karaoke', required: false })
+  @IsString()
+  @IsOptional()
+  notes?: string;
+
+  @ApiProperty({ description: 'Track metadata for each uploaded file', type: [KaraokeTrackUploadDto], required: false })
+  @ValidateNested({ each: true })
+  @Type(() => KaraokeTrackUploadDto)
+  @IsArray()
+  @IsOptional()
+  tracks?: KaraokeTrackUploadDto[];
+}
+
+// Track download response DTO
+export class KaraokeTrackDownloadDto {
+  @ApiProperty({ description: 'Track download URL' })
+  downloadUrl: string = '';
+
+  @ApiProperty({ description: 'Track file size in bytes' })
+  fileSize: number = 0;
+
+  @ApiProperty({ description: 'Track duration in seconds' })
+  duration: number = 0;
+
+  @ApiProperty({ example: 'VOCALS', description: 'Track type', enum: TrackType })
+  trackType: TrackType = TrackType.VOCALS;
+
+  @ApiProperty({ example: 1.0, description: 'Default volume level' })
+  volume: number = 1.0;
+
+  @ApiProperty({ example: false, description: 'Whether track is muted by default' })
+  isMuted: boolean = false;
 }

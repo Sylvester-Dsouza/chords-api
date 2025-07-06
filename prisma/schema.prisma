@@ -336,7 +336,8 @@ model Karaoke {
   notes       String?  @map("notes") @db.Text // Admin notes about the karaoke
 
   // Relations
-  song        Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  song        Song           @relation(fields: [songId], references: [id], onDelete: Cascade)
+  tracks      KaraokeTrack[] // One-to-many relationship with individual tracks
 
   // Performance indexes
   @@index([songId])
@@ -344,6 +345,35 @@ model Karaoke {
   @@index([status])
   @@index([uploadedBy])
   @@map("Karaoke")
+}
+
+// Individual karaoke tracks (vocals, bass, drums, other)
+model KaraokeTrack {
+  id          String   @id @default(uuid())
+  karaokeId   String   @map("karaokeId") // Foreign key to Karaoke
+  trackType   String   @map("trackType") // VOCALS, BASS, DRUMS, OTHER
+  fileUrl     String   @map("fileUrl") // URL to individual track file in Supabase Storage
+  fileSize    Int?     @map("fileSize") // File size in bytes
+  duration    Int?     @map("duration") // Duration in seconds
+  volume      Float    @default(1.0) @map("volume") // Default volume level (0.0 to 1.0)
+  isMuted     Boolean  @default(false) @map("isMuted") // Whether track is muted by default
+  uploadedAt  DateTime @default(now()) @map("uploadedAt") // When track was uploaded
+  updatedAt   DateTime @updatedAt @map("updatedAt") // When track was last updated
+
+  // Metadata fields
+  quality     String?  @map("quality") // HIGH, MEDIUM, LOW quality indicator
+  notes       String?  @map("notes") @db.Text // Admin notes about this specific track
+  status      String   @default("ACTIVE") @map("status") // ACTIVE, INACTIVE, PROCESSING
+
+  // Relations
+  karaoke     Karaoke  @relation(fields: [karaokeId], references: [id], onDelete: Cascade)
+
+  // Constraints
+  @@unique([karaokeId, trackType]) // Ensure only one track per type per karaoke
+  @@index([karaokeId])
+  @@index([trackType])
+  @@index([status])
+  @@map("KaraokeTrack")
 }
 
 // Junction table for Song-Tag many-to-many relationship

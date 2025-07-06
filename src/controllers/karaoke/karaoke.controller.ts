@@ -8,10 +8,11 @@ import {
   Query,
   UseInterceptors,
   UploadedFile,
+  UploadedFiles,
   BadRequestException,
   UseGuards,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBearerAuth } from '@nestjs/swagger';
 import { KaraokeService } from '../../services/karaoke.service';
 import { UploadService } from '../../services/upload.service';
@@ -23,6 +24,9 @@ import {
   KaraokeListQueryDto,
   KaraokeAnalyticsDto,
   KaraokeStatsResponseDto,
+  MultiTrackKaraokeUploadDto,
+  KaraokeTrackDownloadDto,
+  TrackType,
 } from '../../dto/karaoke.dto';
 
 @ApiTags('Karaoke')
@@ -173,5 +177,117 @@ export class KaraokeController {
   @ApiResponse({ status: 403, description: 'Admin access required' })
   async getKaraokeStats(): Promise<KaraokeStatsResponseDto> {
     return this.karaokeService.getKaraokeStats();
+  }
+
+  @Post('songs/:songId/upload-multi-track')
+  @UseGuards(UserAuthGuard)
+  @UseInterceptors(FilesInterceptor('tracks', 4)) // Max 4 tracks (vocals, bass, drums, other)
+  @ApiConsumes('multipart/form-data')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Upload multiple karaoke tracks for a song (Admin only)' })
+  @ApiResponse({ status: 201, description: 'Multi-track karaoke uploaded successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid files or song not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Admin access required' })
+  async uploadMultiTrackKaraoke(
+    @Param('songId') songId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body() karaokeData: MultiTrackKaraokeUploadDto,
+  ): Promise<{ message: string; karaoke?: any }> {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No track files uploaded');
+    }
+
+    if (files.length > 4) {
+      throw new BadRequestException('Maximum 4 tracks allowed (vocals, bass, drums, other)');
+    }
+
+    // Validate track types from form data
+    const trackTypes = ['vocals', 'bass', 'drums', 'other'];
+    const trackFiles: { [trackType: string]: { fileUrl: string; fileSize: number } } = {};
+
+    try {
+      // Upload each track file
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const trackType = trackTypes[i]; // Assume files are uploaded in order
+
+        // Validate audio file
+        const allowedMimeTypes = [
+          'audio/mpeg',
+          'audio/mp3',
+          'audio/wav',
+          'audio/ogg',
+          'audio/aac',
+          'audio/m4a',
+          'audio/webm',
+        ];
+
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+          throw new BadRequestException(`Invalid file type for ${trackType}: ${file.mimetype}`);
+        }
+
+        // Upload file to Supabase Storage
+        const fileUrl = await this.uploadService.uploadFile(
+          file.buffer,
+          'karaoke', // folder
+          `${trackType}_${file.originalname}`,
+          file.mimetype,
+          songId, // entityId to create subfolder
+        );
+
+        if (!fileUrl) {
+          throw new BadRequestException(`Failed to upload ${trackType} track to storage`);
+        }
+
+        trackFiles[trackType.toUpperCase()] = {
+          fileUrl,
+          fileSize: file.size,
+        };
+      }
+
+      // Save multi-track karaoke information to database
+      const karaoke = await this.karaokeService.uploadMultiTrackKaraoke(songId, karaokeData, trackFiles);
+
+      return {
+        message: 'Multi-track karaoke uploaded successfully',
+        karaoke
+      };
+    } catch (error: any) {
+      throw new BadRequestException(`Failed to upload multi-track karaoke: ${error.message}`);
+    }
+  }
+
+  @Get('songs/:songId/tracks/:trackType/download')
+  @UseGuards(CustomerAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get individual track download URL' })
+  @ApiResponse({ status: 200, description: 'Track download URL retrieved successfully' })
+  @ApiResponse({ status: 400, description: 'Song or track not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getTrackDownloadUrl(
+    @Param('songId') songId: string,
+    @Param('trackType') trackType: string,
+  ): Promise<KaraokeTrackDownloadDto> {
+    // Validate track type
+    const validTrackTypes = Object.values(TrackType);
+    if (!validTrackTypes.includes(trackType.toUpperCase() as TrackType)) {
+      throw new BadRequestException(`Invalid track type: ${trackType}. Valid types: ${validTrackTypes.join(', ')}`);
+    }
+
+    return this.karaokeService.getTrackDownloadUrl(songId, trackType.toUpperCase() as TrackType);
+  }
+
+  @Get('songs/:songId/tracks/download-all')
+  @UseGuards(CustomerAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all tracks download URLs for a song' })
+  @ApiResponse({ status: 200, description: 'All tracks download URLs retrieved successfully' })
+  @ApiResponse({ status: 400, description: 'Song not found or no tracks available' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getAllTracksDownloadUrls(
+    @Param('songId') songId: string,
+  ): Promise<{ [trackType: string]: KaraokeTrackDownloadDto }> {
+    return this.karaokeService.getAllTracksDownloadUrls(songId);
   }
 }

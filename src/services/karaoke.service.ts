@@ -8,7 +8,11 @@ import {
   KaraokeListQueryDto,
   KaraokeUpdateDto,
   KaraokeAnalyticsDto,
-  KaraokeStatsResponseDto
+  KaraokeStatsResponseDto,
+  MultiTrackKaraokeUploadDto,
+  KaraokeTrackResponseDto,
+  KaraokeTrackDownloadDto,
+  TrackType
 } from '../dto/karaoke.dto';
 import { Prisma } from '@prisma/client';
 
@@ -147,6 +151,7 @@ export class KaraokeService {
     try {
       const karaoke = await this.prisma.karaoke.findUnique({
         where: { id: karaokeId },
+        include: { tracks: true },
       });
 
       if (!karaoke) {
@@ -167,6 +172,7 @@ export class KaraokeService {
     try {
       const karaoke = await this.prisma.karaoke.findUnique({
         where: { songId },
+        include: { tracks: true },
       });
 
       return karaoke ? this.mapKaraokeToDto(karaoke) : null;
@@ -194,6 +200,7 @@ export class KaraokeService {
       status: karaoke.status,
       quality: karaoke.quality,
       notes: karaoke.notes,
+      tracks: karaoke.tracks ? karaoke.tracks.map((track: any) => this.mapTrackToDto(track)) : [],
     };
   }
 
@@ -324,6 +331,7 @@ export class KaraokeService {
                     },
                   },
                 },
+                tracks: true,
               },
             }),
             this.prisma.karaoke.count({ where: karaokeWhere }),
@@ -479,5 +487,262 @@ export class KaraokeService {
       this.logger.error(`Failed to get karaoke stats: ${error.message}`);
       throw error;
     }
+  }
+
+  /**
+   * Upload multiple karaoke tracks for a song
+   */
+  async uploadMultiTrackKaraoke(
+    songId: string,
+    karaokeData: MultiTrackKaraokeUploadDto,
+    trackFiles: { [trackType: string]: { fileUrl: string; fileSize: number } },
+    uploadedBy?: string
+  ): Promise<KaraokeResponseDto> {
+    try {
+      // Check if song exists
+      const song = await this.prisma.song.findUnique({
+        where: { id: songId },
+      });
+
+      if (!song) {
+        throw new NotFoundException(`Song with ID ${songId} not found`);
+      }
+
+      // Start transaction for atomic operation
+      const result = await this.prisma.$transaction(async (tx) => {
+        // Check if karaoke already exists for this song
+        const existingKaraoke = await tx.karaoke.findUnique({
+          where: { songId },
+          include: { tracks: true },
+        });
+
+        let karaoke;
+        if (existingKaraoke) {
+          // Delete existing tracks
+          await tx.karaokeTrack.deleteMany({
+            where: { karaokeId: existingKaraoke.id },
+          });
+
+          // Update existing karaoke
+          karaoke = await tx.karaoke.update({
+            where: { songId },
+            data: {
+              fileUrl: '', // No longer used for multi-track
+              fileSize: Object.values(trackFiles).reduce((sum, file) => sum + file.fileSize, 0),
+              duration: karaokeData.duration,
+              key: karaokeData.key || song.key,
+              quality: karaokeData.quality,
+              notes: karaokeData.notes,
+              uploadedBy,
+              version: { increment: 1 },
+              status: 'ACTIVE',
+            },
+          });
+        } else {
+          // Create new karaoke
+          karaoke = await tx.karaoke.create({
+            data: {
+              songId,
+              fileUrl: '', // No longer used for multi-track
+              fileSize: Object.values(trackFiles).reduce((sum, file) => sum + file.fileSize, 0),
+              duration: karaokeData.duration,
+              key: karaokeData.key || song.key,
+              quality: karaokeData.quality,
+              notes: karaokeData.notes,
+              uploadedBy,
+              status: 'ACTIVE',
+            },
+          });
+        }
+
+        // Create individual tracks
+        const trackPromises = Object.entries(trackFiles).map(([trackType, fileData]) => {
+          const trackMetadata = karaokeData.tracks?.find(t => t.trackType === trackType);
+
+          return tx.karaokeTrack.create({
+            data: {
+              karaokeId: karaoke.id,
+              trackType: trackType as TrackType,
+              fileUrl: fileData.fileUrl,
+              fileSize: fileData.fileSize,
+              duration: karaokeData.duration,
+              volume: trackMetadata?.volume || 1.0,
+              isMuted: trackMetadata?.isMuted || false,
+              quality: trackMetadata?.quality || karaokeData.quality,
+              notes: trackMetadata?.notes,
+              status: 'ACTIVE',
+            },
+          });
+        });
+
+        const tracks = await Promise.all(trackPromises);
+
+        return { karaoke, tracks };
+      });
+
+      // Invalidate cache
+      await this.cacheService.deleteByPrefix(CachePrefix.KARAOKE);
+      await this.cacheService.deleteByPrefix(CachePrefix.SONGS);
+
+      this.logger.log(`Multi-track karaoke uploaded successfully for song ${songId}`);
+
+      return this.mapKaraokeToDto({ ...result.karaoke, tracks: result.tracks });
+    } catch (error: any) {
+      this.logger.error(`Failed to upload multi-track karaoke for song ${songId}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get individual track download URL
+   */
+  async getTrackDownloadUrl(songId: string, trackType: TrackType): Promise<KaraokeTrackDownloadDto> {
+    try {
+      const cacheKey = this.cacheService.createKey(CachePrefix.KARAOKE, `track:${songId}:${trackType}`);
+
+      return await this.cacheService.getOrSet(
+        cacheKey,
+        async () => {
+          const track = await this.prisma.karaokeTrack.findFirst({
+            where: {
+              karaoke: { songId },
+              trackType,
+              status: 'ACTIVE',
+            },
+            select: {
+              fileUrl: true,
+              fileSize: true,
+              duration: true,
+              trackType: true,
+              volume: true,
+              isMuted: true,
+            },
+          });
+
+          if (!track) {
+            throw new NotFoundException(`No ${trackType} track found for song ${songId}`);
+          }
+
+          return {
+            downloadUrl: track.fileUrl,
+            fileSize: track.fileSize || 0,
+            duration: track.duration || 0,
+            trackType: track.trackType as TrackType,
+            volume: track.volume,
+            isMuted: track.isMuted,
+          };
+        },
+        CacheTTL.SHORT // 1 minute cache for download URLs
+      );
+    } catch (error: any) {
+      this.logger.error(`Failed to get track download URL for song ${songId}, track ${trackType}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all tracks download URLs for a song
+   */
+  async getAllTracksDownloadUrls(songId: string): Promise<{ [trackType: string]: KaraokeTrackDownloadDto }> {
+    try {
+      const cacheKey = this.cacheService.createKey(CachePrefix.KARAOKE, `all-tracks:${songId}`);
+
+      return await this.cacheService.getOrSet(
+        cacheKey,
+        async () => {
+          const tracks = await this.prisma.karaokeTrack.findMany({
+            where: {
+              karaoke: { songId },
+              status: 'ACTIVE',
+            },
+            select: {
+              fileUrl: true,
+              fileSize: true,
+              duration: true,
+              trackType: true,
+              volume: true,
+              isMuted: true,
+            },
+          });
+
+          if (tracks.length === 0) {
+            throw new NotFoundException(`No tracks found for song ${songId}`);
+          }
+
+          const result: { [trackType: string]: KaraokeTrackDownloadDto } = {};
+          tracks.forEach(track => {
+            result[track.trackType] = {
+              downloadUrl: track.fileUrl,
+              fileSize: track.fileSize || 0,
+              duration: track.duration || 0,
+              trackType: track.trackType as TrackType,
+              volume: track.volume,
+              isMuted: track.isMuted,
+            };
+          });
+
+          return result;
+        },
+        CacheTTL.SHORT // 1 minute cache for download URLs
+      );
+    } catch (error: any) {
+      this.logger.error(`Failed to get all tracks download URLs for song ${songId}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Update track settings (volume, mute status)
+   */
+  async updateTrackSettings(songId: string, trackType: TrackType, settings: { volume?: number; isMuted?: boolean }): Promise<KaraokeTrackResponseDto> {
+    try {
+      const track = await this.prisma.karaokeTrack.findFirst({
+        where: {
+          karaoke: { songId },
+          trackType,
+        },
+      });
+
+      if (!track) {
+        throw new NotFoundException(`No ${trackType} track found for song ${songId}`);
+      }
+
+      const updatedTrack = await this.prisma.karaokeTrack.update({
+        where: { id: track.id },
+        data: {
+          volume: settings.volume !== undefined ? settings.volume : track.volume,
+          isMuted: settings.isMuted !== undefined ? settings.isMuted : track.isMuted,
+        },
+      });
+
+      // Invalidate cache
+      await this.cacheService.deleteByPrefix(CachePrefix.KARAOKE);
+
+      return this.mapTrackToDto(updatedTrack);
+    } catch (error: any) {
+      this.logger.error(`Failed to update track settings for song ${songId}, track ${trackType}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Helper method to map KaraokeTrack model to DTO
+   */
+  private mapTrackToDto(track: any): KaraokeTrackResponseDto {
+    return {
+      id: track.id,
+      karaokeId: track.karaokeId,
+      trackType: track.trackType,
+      fileUrl: track.fileUrl,
+      fileSize: track.fileSize,
+      duration: track.duration,
+      volume: track.volume,
+      isMuted: track.isMuted,
+      uploadedAt: track.uploadedAt,
+      updatedAt: track.updatedAt,
+      quality: track.quality,
+      notes: track.notes,
+      status: track.status,
+    };
   }
 }
