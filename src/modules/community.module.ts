@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { CommunityController } from '../controllers/community/community.controller';
-import { CommunityService } from '../services/community.service';
+import { CommunityController } from '../controllers/setlist/community-setlist.controller';
+import { CommunityService } from '../services/community-setlist.service';
 import { CacheModule } from './cache.module';
 
 @Module({

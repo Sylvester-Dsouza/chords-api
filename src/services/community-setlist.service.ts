@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
-import { CommunitySetlistsResponseDto, CommunitySetlistDto } from '../dto/community.dto';
+import { CommunitySetlistsResponseDto, CommunitySetlistDto } from '../dto/community-setlist.dto';
+import { SetlistResponseDto, SetlistCollaboratorResponseDto } from '../dto/setlist.dto';
 
 interface GetCommunitySetlistsParams {
   page: number;
@@ -15,6 +16,48 @@ export class CommunityService {
   private readonly logger = new Logger(CommunityService.name);
 
   constructor(private prisma: PrismaService) {}
+  
+  /**
+   * Helper method to transform Prisma setlist result to SetlistResponseDto
+   */
+  private transformToSetlistResponseDto(setlist: any): SetlistResponseDto {
+    // Convert dates to ISO strings and properly format collaborators
+    const formattedSetlist: SetlistResponseDto = {
+      id: setlist.id,
+      name: setlist.name,
+      description: setlist.description,
+      customerId: setlist.customerId,
+      createdAt: setlist.createdAt,
+      updatedAt: setlist.updatedAt,
+      isPublic: setlist.isPublic,
+      isShared: setlist.isShared,
+      shareCode: setlist.shareCode,
+      allowEditing: setlist.allowEditing,
+      allowComments: setlist.allowComments,
+      version: setlist.version,
+      songs: setlist.songs,
+      // Need to manually transform the collaborators to match the expected DTO format
+      collaborators: setlist.collaborators.map((collab: any) => {
+        // Create a properly formatted collaborator object that matches SetlistCollaboratorResponseDto
+        return {
+          id: collab.id,
+          status: collab.status,
+          permission: collab.permission,
+          invitedAt: typeof collab.invitedAt === 'string' ? collab.invitedAt : collab.invitedAt.toISOString(),
+          acceptedAt: collab.acceptedAt ? (typeof collab.acceptedAt === 'string' ? collab.acceptedAt : collab.acceptedAt.toISOString()) : null,
+          lastActiveAt: collab.lastActiveAt ? (typeof collab.lastActiveAt === 'string' ? collab.lastActiveAt : collab.lastActiveAt.toISOString()) : null,
+          customer: {
+            id: collab.customer.id,
+            name: collab.customer.name,
+            email: collab.customer.email || '', // Use email if available, otherwise empty string
+            profilePicture: collab.customer.profilePicture || undefined
+          }
+        };
+      })
+    };
+    
+    return formattedSetlist;
+  }
 
   async getCommunitySetlists(params: GetCommunitySetlistsParams): Promise<CommunitySetlistsResponseDto> {
     const { page, limit, sortBy, search, customerId } = params;
@@ -291,6 +334,212 @@ export class CommunityService {
       };
     } catch (error) {
       this.logger.error('Error fetching liked setlists:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add a song from a community setlist to a user's own setlist
+   * This method bypasses the normal permission check in SetlistService.addSong
+   * by directly verifying that the target setlist belongs to the user
+   */
+  async addSongToUserSetlist(
+    songId: string,
+    targetSetlistId: string,
+    customerId: string
+  ): Promise<SetlistResponseDto> {
+    try {
+      this.logger.log(`Adding song ${songId} to setlist ${targetSetlistId} for user ${customerId}`);
+      
+      // Verify the song exists
+      const song = await this.prisma.song.findUnique({
+        where: { id: songId },
+      });
+
+      if (!song) {
+        throw new NotFoundException(`Song with ID ${songId} not found`);
+      }
+
+      // Verify the target setlist exists and belongs to the user
+      const targetSetlist = await this.prisma.setlist.findUnique({
+        where: { id: targetSetlistId },
+        include: {
+          songs: true,
+          collaborators: {
+            where: { customerId },
+          },
+        },
+      });
+
+      if (!targetSetlist) {
+        throw new NotFoundException(`Setlist with ID ${targetSetlistId} not found`);
+      }
+
+      // Check if the user has permission to modify this setlist
+      const isOwner = targetSetlist.customerId === customerId;
+      const hasEditPermission = targetSetlist.collaborators.some(c => 
+        ['EDIT', 'ADMIN'].includes(c.permission)
+      );
+
+      if (!isOwner && !hasEditPermission) {
+        throw new ForbiddenException('You do not have permission to modify this setlist');
+      }
+
+      // Check if song is already in the setlist
+      const songExists = targetSetlist.songs.some(s => s.id === songId);
+      if (songExists) {
+        throw new BadRequestException(`Song with ID ${songId} is already in the setlist`);
+      }
+
+      // Add song to setlist
+      const updatedSetlist = await this.prisma.setlist.update({
+        where: { id: targetSetlistId },
+        data: {
+          songs: {
+            connect: { id: songId },
+          },
+          updatedAt: new Date(),
+        },
+        include: {
+          songs: {
+            include: {
+              artist: true,
+            },
+          },
+          collaborators: {
+            include: {
+              customer: {
+                select: {
+                  id: true,
+                  name: true,
+                  profilePicture: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Log activity
+      await this.prisma.setlistActivity.create({
+        data: {
+          setlistId: targetSetlistId,
+          customerId,
+          action: 'SONG_ADDED',
+          details: JSON.stringify({ songId }),
+          version: 1, // Required field
+        },
+      });
+
+      return this.transformToSetlistResponseDto(updatedSetlist);
+    } catch (error: any) {
+      this.logger.error(`Error adding song to setlist: ${error.message || 'Unknown error'}`, error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Add multiple songs from a community setlist to a user's own setlist
+   * This method bypasses the normal permission check in SetlistService.addMultipleSongs
+   * by directly verifying that the target setlist belongs to the user
+   */
+  async addMultipleSongsToUserSetlist(
+    songIds: string[],
+    targetSetlistId: string,
+    customerId: string
+  ): Promise<SetlistResponseDto> {
+    try {
+      this.logger.log(`Adding ${songIds.length} songs to setlist ${targetSetlistId} for user ${customerId}`);
+      
+      if (!songIds.length) {
+        throw new BadRequestException('No songs provided to add');
+      }
+
+      // Verify the songs exist
+      const songs = await this.prisma.song.findMany({
+        where: { id: { in: songIds } },
+      });
+
+      if (songs.length !== songIds.length) {
+        throw new NotFoundException('One or more songs not found');
+      }
+
+      // Verify the target setlist exists and belongs to the user
+      const targetSetlist = await this.prisma.setlist.findUnique({
+        where: { id: targetSetlistId },
+        include: {
+          songs: true,
+          collaborators: {
+            where: { customerId },
+          },
+        },
+      });
+
+      if (!targetSetlist) {
+        throw new NotFoundException(`Setlist with ID ${targetSetlistId} not found`);
+      }
+
+      // Check if the user has permission to modify this setlist
+      const isOwner = targetSetlist.customerId === customerId;
+      const hasEditPermission = targetSetlist.collaborators.some(c => 
+        ['EDIT', 'ADMIN'].includes(c.permission)
+      );
+
+      if (!isOwner && !hasEditPermission) {
+        throw new ForbiddenException('You do not have permission to modify this setlist');
+      }
+
+      // Filter out songs that are already in the setlist
+      const existingSongIds = targetSetlist.songs.map(s => s.id);
+      const newSongIds = songIds.filter(id => !existingSongIds.includes(id));
+
+      if (!newSongIds.length) {
+        throw new BadRequestException('All songs are already in the setlist');
+      }
+
+      // Add songs to setlist
+      const updatedSetlist = await this.prisma.setlist.update({
+        where: { id: targetSetlistId },
+        data: {
+          songs: {
+            connect: newSongIds.map(id => ({ id })),
+          },
+          updatedAt: new Date(),
+        },
+        include: {
+          songs: {
+            include: {
+              artist: true,
+            },
+          },
+          collaborators: {
+            include: {
+              customer: {
+                select: {
+                  id: true,
+                  name: true,
+                  profilePicture: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Log activity
+      await this.prisma.setlistActivity.create({
+        data: {
+          setlistId: targetSetlistId,
+          customerId,
+          action: 'SONG_ADDED', // Using SONG_ADDED as SONGS_ADDED is not a valid enum value
+          details: JSON.stringify({ songIds: newSongIds }),
+          version: 1, // Required field
+        },
+      });
+
+      return this.transformToSetlistResponseDto(updatedSetlist);
+    } catch (error: any) {
+      this.logger.error(`Error adding multiple songs to setlist: ${error.message || 'Unknown error'}`, error.stack);
       throw error;
     }
   }

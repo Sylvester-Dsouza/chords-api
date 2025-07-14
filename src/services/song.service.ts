@@ -523,6 +523,28 @@ export class SongService {
               karaokeDto.status = song.karaoke.status;
               karaokeDto.quality = song.karaoke.quality;
               karaokeDto.notes = song.karaoke.notes;
+
+              // Map karaoke tracks if available
+              if (song.karaoke.tracks && Array.isArray(song.karaoke.tracks)) {
+                karaokeDto.tracks = song.karaoke.tracks.map((track: any) => ({
+                  id: track.id,
+                  karaokeId: track.karaokeId,
+                  trackType: track.trackType,
+                  fileUrl: track.fileUrl,
+                  fileSize: track.fileSize,
+                  duration: track.duration,
+                  volume: track.volume,
+                  isMuted: track.isMuted,
+                  uploadedAt: track.uploadedAt,
+                  updatedAt: track.updatedAt,
+                  quality: track.quality,
+                  notes: track.notes,
+                  status: track.status,
+                }));
+              } else {
+                karaokeDto.tracks = [];
+              }
+
               dto.karaoke = karaokeDto;
             } else {
               dto.karaoke = null;
@@ -667,7 +689,11 @@ export class SongService {
             include: {
               artist: true,
               language: true,
-              karaoke: true,
+              karaoke: {
+                include: {
+                  tracks: true,
+                },
+              },
               songTags: {
                 include: {
                   tag: true,
@@ -699,7 +725,11 @@ export class SongService {
         include: {
           artist: true,
           language: true,
-          karaoke: true,
+          karaoke: {
+            include: {
+              tracks: true,
+            },
+          },
           songTags: {
             include: {
               tag: true,
@@ -710,6 +740,18 @@ export class SongService {
 
       if (!song) {
         throw new NotFoundException(`Song with ID ${id} not found`);
+      }
+
+      // Debug karaoke tracks
+      if (song.karaoke) {
+        console.log(`🎤 [Backend] Song ${id} has karaoke data with ${song.karaoke.tracks?.length || 0} tracks`);
+        if (song.karaoke.tracks && song.karaoke.tracks.length > 0) {
+          song.karaoke.tracks.forEach((track: any) => {
+            console.log(`🎤 [Backend] Track: ${track.trackType}, Status: ${track.status}, URL: ${track.fileUrl}`);
+          });
+        }
+      } else {
+        console.log(`🎤 [Backend] Song ${id} has no karaoke data`);
       }
 
       // Map to DTO
@@ -787,6 +829,28 @@ export class SongService {
       karaokeDto.status = song.karaoke.status;
       karaokeDto.quality = song.karaoke.quality;
       karaokeDto.notes = song.karaoke.notes;
+
+      // Map karaoke tracks if available
+      if (song.karaoke.tracks && Array.isArray(song.karaoke.tracks)) {
+        karaokeDto.tracks = song.karaoke.tracks.map((track: any) => ({
+          id: track.id,
+          karaokeId: track.karaokeId,
+          trackType: track.trackType,
+          fileUrl: track.fileUrl,
+          fileSize: track.fileSize,
+          duration: track.duration,
+          volume: track.volume,
+          isMuted: track.isMuted,
+          uploadedAt: track.uploadedAt,
+          updatedAt: track.updatedAt,
+          quality: track.quality,
+          notes: track.notes,
+          status: track.status,
+        }));
+      } else {
+        karaokeDto.tracks = [];
+      }
+
       dto.karaoke = karaokeDto;
     } else {
       dto.karaoke = null;

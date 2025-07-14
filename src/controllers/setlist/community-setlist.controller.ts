@@ -1,7 +1,7 @@
-import { Controller, Get, Query, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, Req, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { CommunityService } from '../../services/community.service';
-import { CommunitySetlistsResponseDto, CommunitySetlistDto } from '../../dto/community.dto';
+import { CommunityService } from '../../services/community-setlist.service';
+import { CommunitySetlistsResponseDto } from '../../dto/community-setlist.dto';
 import { CustomerAuthGuard } from '../../guards/customer-auth.guard';
 import { Request } from 'express';
 
@@ -88,5 +88,24 @@ export class CommunityController {
     const limitNum = parseInt(limit, 10) || 20;
     
     return this.communityService.getMyLikedSetlists(customerId, pageNum, limitNum);
+  }
+
+
+
+  @Post('songs/add-multiple-to-setlist')
+  @ApiOperation({ summary: 'Add multiple songs from a community setlist to user\'s own setlist' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Songs added to setlist successfully.', 
+  })
+  @ApiResponse({ status: 400, description: 'Bad Request.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 404, description: 'Songs or setlist not found.' })
+  async addMultipleSongsToSetlist(
+    @Req() req: RequestWithUser
+  ): Promise<void> {
+    const customerId = req.user.id;
+    
   }
 }
