@@ -152,6 +152,16 @@ export class SetlistService {
       },
     });
 
+    // Invalidate customer's setlists cache
+    const cacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
+    await this.cacheService.delete(cacheKey);
+    this.logger.debug(`Invalidated setlists cache for customer ${customerId} after update`);
+
+    // Also invalidate specific setlist cache
+    const setlistCacheKey = this.cacheService.createKey(CachePrefix.SETLIST, id);
+    await this.cacheService.delete(setlistCacheKey);
+    this.logger.debug(`Invalidated specific setlist cache for ${id} after update`);
+
     return updatedSetlist;
   }
 
@@ -349,13 +359,31 @@ export class SetlistService {
     // Check if setlist exists and belongs to the customer
     await this.findOne(id, customerId);
 
-    // Delete setlist
+    // Hard delete setlist - completely remove from database
     const deletedSetlist = await this.prisma.setlist.delete({
       where: { id },
       include: {
-        songs: true,
+        songs: {
+          include: {
+            artist: true,
+          },
+        },
       },
     });
+
+    // Invalidate customer's setlists cache
+    const cacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
+    await this.cacheService.delete(cacheKey);
+    this.logger.debug(`Invalidated setlists cache for customer ${customerId} after hard deletion`);
+
+    // Also invalidate specific setlist cache if it exists
+    const setlistCacheKey = this.cacheService.createKey(CachePrefix.SETLIST, id);
+    await this.cacheService.delete(setlistCacheKey);
+    this.logger.debug(`Invalidated specific setlist cache for ${id} after hard deletion`);
+
+    // Invalidate all related caches
+    await this.cacheService.deleteByPrefix(CachePrefix.SETLISTS);
+    this.logger.debug(`Invalidated all setlist caches after deletion of ${id}`);
 
     return deletedSetlist;
   }
@@ -1147,6 +1175,11 @@ export class SetlistService {
     const cacheKey = this.cacheService.createKey(CachePrefix.SETLIST, setlistId);
     await this.cacheService.delete(cacheKey);
 
+    // Also invalidate customer's setlists cache
+    const setlistsCacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
+    await this.cacheService.delete(setlistsCacheKey);
+    this.logger.debug(`Invalidated setlists cache for customer ${customerId} after making public`);
+
     this.logger.log(`Setlist ${setlistId} made public by customer ${customerId}`);
     return updatedSetlist;
   }
@@ -1189,6 +1222,11 @@ export class SetlistService {
     // Invalidate cache
     const cacheKey = this.cacheService.createKey(CachePrefix.SETLIST, setlistId);
     await this.cacheService.delete(cacheKey);
+
+    // Also invalidate customer's setlists cache
+    const setlistsCacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
+    await this.cacheService.delete(setlistsCacheKey);
+    this.logger.debug(`Invalidated setlists cache for customer ${customerId} after making private`);
 
     this.logger.log(`Setlist ${setlistId} made private by customer ${customerId}`);
     return updatedSetlist;

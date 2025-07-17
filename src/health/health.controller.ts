@@ -11,6 +11,7 @@ import { PrismaService } from '../services/prisma.service';
 import { CacheService } from '../services/cache.service';
 import { SkipThrottle } from '../decorators/skip-throttle.decorator';
 import { PrismaHealthIndicator } from './prisma.health';
+import { DatabaseProtectionService } from '../services/database-protection.service';
 
 @ApiTags('Health')
 @Controller('health')
@@ -24,6 +25,7 @@ export class HealthController {
     private disk: DiskHealthIndicator,
     private prismaService: PrismaService,
     private cacheService: CacheService,
+    private databaseProtection: DatabaseProtectionService,
   ) {}
 
   @Get()
@@ -80,6 +82,30 @@ export class HealthController {
       status: 'ok',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
+    };
+  }
+
+  @Get('database-protection')
+  @ApiOperation({ summary: 'Check database protection status' })
+  getDatabaseProtectionStatus() {
+    const protectionStatus = this.databaseProtection.getProtectionStatus();
+
+    return {
+      ...protectionStatus,
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      safeguards: {
+        productionSafetyGuard: 'ACTIVE',
+        databaseSafetyMiddleware: 'ACTIVE',
+        databaseProtectionService: 'ACTIVE',
+      },
+      blockedOperations: [
+        'DATABASE_RESET',
+        'DATABASE_DROP',
+        'TRUNCATE_ALL',
+        'BULK_DELETE_ALL',
+        'FACTORY_RESET',
+      ],
     };
   }
 }

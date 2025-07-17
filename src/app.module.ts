@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { CustomThrottlerGuard } from './guards/custom-throttler.guard';
@@ -48,6 +48,11 @@ import { CoursesModule } from './modules/courses.module';
 import { VocalModule } from './modules/vocal.module';
 import { CommunityModule } from './modules/community.module';
 import { CacheModule } from './modules/cache.module';
+
+// Database Safety Imports
+import { DatabaseSafetyMiddleware } from './middleware/database-safety.middleware';
+import { ProductionSafetyGuard } from './guards/production-safety.guard';
+import { DatabaseProtectionService } from './services/database-protection.service';
 import { KaraokeModule } from './modules/karaoke.module';
 import { HealthController } from './controllers/health/health.controller';
 
@@ -138,7 +143,20 @@ import { BannerItemService } from './services/banner-item.service';
     CommentService,
     SongRatingService,
     HomeSectionService,
-    BannerItemService
+    BannerItemService,
+    // Database Safety Services
+    DatabaseProtectionService,
+    {
+      provide: APP_GUARD,
+      useClass: ProductionSafetyGuard,
+    },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    // Apply database safety middleware to all routes
+    consumer
+      .apply(DatabaseSafetyMiddleware)
+      .forRoutes('*');
+  }
+}

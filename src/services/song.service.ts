@@ -525,8 +525,10 @@ export class SongService {
               karaokeDto.notes = song.karaoke.notes;
 
               // Map karaoke tracks if available
-              if (song.karaoke.tracks && Array.isArray(song.karaoke.tracks)) {
-                karaokeDto.tracks = song.karaoke.tracks.map((track: any) => ({
+              // Use type assertion to access tracks property
+              const tracks = (song.karaoke as any).tracks;
+              if (tracks && Array.isArray(tracks)) {
+                karaokeDto.tracks = tracks.map((track: any) => ({
                   id: track.id,
                   karaokeId: track.karaokeId,
                   trackType: track.trackType,
@@ -744,9 +746,11 @@ export class SongService {
 
       // Debug karaoke tracks
       if (song.karaoke) {
-        console.log(`🎤 [Backend] Song ${id} has karaoke data with ${song.karaoke.tracks?.length || 0} tracks`);
-        if (song.karaoke.tracks && song.karaoke.tracks.length > 0) {
-          song.karaoke.tracks.forEach((track: any) => {
+        // Check if tracks property exists before accessing it
+        const tracks = (song.karaoke as any).tracks;
+        console.log(`🎤 [Backend] Song ${id} has karaoke data with ${tracks?.length || 0} tracks`);
+        if (tracks && tracks.length > 0) {
+          tracks.forEach((track: any) => {
             console.log(`🎤 [Backend] Track: ${track.trackType}, Status: ${track.status}, URL: ${track.fileUrl}`);
           });
         }
@@ -831,8 +835,10 @@ export class SongService {
       karaokeDto.notes = song.karaoke.notes;
 
       // Map karaoke tracks if available
-      if (song.karaoke.tracks && Array.isArray(song.karaoke.tracks)) {
-        karaokeDto.tracks = song.karaoke.tracks.map((track: any) => ({
+      // Use type assertion to access tracks property
+      const tracks = (song.karaoke as any).tracks;
+      if (tracks && Array.isArray(tracks)) {
+        karaokeDto.tracks = tracks.map((track: any) => ({
           id: track.id,
           karaokeId: track.karaokeId,
           trackType: track.trackType,
