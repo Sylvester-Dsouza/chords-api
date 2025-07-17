@@ -62,6 +62,7 @@ model Customer {
 
   // Relations
   setlists           Setlist[]
+  setlistSongs       SetlistSong[] // Songs added to setlists by this customer
   refreshTokens      RefreshToken[]
   likedSongs         LikedSong[]
   likedCollections   LikedCollection[]
@@ -270,7 +271,7 @@ model Song {
   artist      Artist       @relation(fields: [artistId], references: [id])
   language    Language?    @relation(fields: [languageId], references: [id])
   likedBy     LikedSong[]
-  setlists    Setlist[] // Direct many-to-many relation
+  setlistSongs SetlistSong[] // Setlists this song appears in with ordering
   collections Collection[]
   songTags    SongTag[]
   comments    Comment[]
@@ -569,7 +570,7 @@ model Setlist {
 
   // Relations
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  songs    Song[] // Direct many-to-many relation
+  setlistSongs SetlistSong[] // Songs in this setlist with ordering
   collaborators SetlistCollaborator[] // Users who can access this setlist
   activities SetlistActivity[] // Activity log for changes
   comments SetlistComment[] // Comments on the setlist
@@ -586,6 +587,30 @@ model Setlist {
   @@index([version])
   @@index([lastSyncAt])
   @@map("Setlist")
+}
+
+// Junction table for setlist songs with ordering
+model SetlistSong {
+  id         String   @id @default(uuid())
+  setlistId  String   @map("setlistId")
+  songId     String   @map("songId")
+  position   Int      // Order position in setlist (0-based)
+  addedAt    DateTime @default(now()) @map("addedAt")
+  addedBy    String   @map("addedBy") // Customer who added this song
+
+  // Relations
+  setlist    Setlist  @relation(fields: [setlistId], references: [id], onDelete: Cascade)
+  song       Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [addedBy], references: [id])
+
+  // Constraints and indexes
+  @@unique([setlistId, songId]) // Prevent duplicate songs in same setlist
+  @@unique([setlistId, position]) // Ensure unique positions within setlist
+  @@index([setlistId])
+  @@index([songId])
+  @@index([position])
+  @@index([addedBy])
+  @@map("SetlistSong")
 }
 
 // Setlist collaborators - users who have access to a shared setlist

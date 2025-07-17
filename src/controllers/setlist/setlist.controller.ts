@@ -7,6 +7,7 @@ import {
   SetlistResponseDto,
   AddSongToSetlistDto,
   AddMultipleSongsToSetlistDto,
+  ReorderSetlistSongsDto,
   ShareSetlistDto,
   UpdateCollaboratorDto,
   SetlistSettingsDto,
@@ -177,6 +178,22 @@ export class SetlistController {
   ): Promise<SetlistResponseDto> {
     const customerId = req.user.id;
     return this.setlistService.removeMultipleSongs(id, customerId, removeMultipleSongsDto.songIds);
+  }
+
+  @Patch(':id/reorder')
+  @ApiOperation({ summary: 'Reorder songs in a setlist' })
+  @ApiResponse({ status: 200, description: 'The songs have been successfully reordered in the setlist.', type: SetlistResponseDto })
+  @ApiResponse({ status: 400, description: 'Bad Request.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 404, description: 'Setlist not found.' })
+  async reorderSongs(
+    @Param('id') id: string,
+    @Body() reorderDto: ReorderSetlistSongsDto,
+    @Req() req: RequestWithUser
+  ): Promise<SetlistResponseDto> {
+    const customerId = req.user.id;
+    return this.setlistService.reorderSongs(id, customerId, reorderDto.songIds);
   }
 
   @Delete(':id')
@@ -364,6 +381,17 @@ export class SetlistController {
   }
 
   // Community Setlist Features
+
+  @Post('cache/clear')
+  @ApiOperation({ summary: 'Clear all setlist caches for the current user' })
+  @ApiResponse({ status: 200, description: 'Caches cleared successfully.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async clearCaches(
+    @Req() req: RequestWithUser
+  ): Promise<{ success: boolean; message: string }> {
+    const customerId = req.user.id;
+    return this.setlistService.clearUserCaches(customerId);
+  }
 
   @Post(':id/make-public')
   @ApiOperation({ summary: 'Make setlist public for community' })

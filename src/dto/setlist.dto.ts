@@ -41,6 +41,16 @@ export class AddMultipleSongsToSetlistDto {
   songIds: string[] = [];
 }
 
+export class ReorderSetlistSongsDto {
+  @ApiProperty({
+    description: 'Array of song IDs in the desired order',
+    example: ['123e4567-e89b-12d3-a456-426614174000', '223e4567-e89b-12d3-a456-426614174001', '323e4567-e89b-12d3-a456-426614174002']
+  })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  songIds: string[] = [];
+}
+
 export class SetlistResponseDto {
   @ApiProperty({ description: 'Setlist ID' })
   id: string = '';

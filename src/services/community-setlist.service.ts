@@ -111,13 +111,24 @@ export class CommunityService {
                 profilePicture: true,
               },
             },
-            songs: {
+            setlistSongs: {
               take: 3, // Preview of first 3 songs
+              orderBy: {
+                position: 'asc',
+              },
               select: {
-                id: true,
-                title: true,
-                artist: true,
-                key: true,
+                song: {
+                  select: {
+                    id: true,
+                    title: true,
+                    artist: {
+                      select: {
+                        name: true,
+                      },
+                    },
+                    key: true,
+                  },
+                },
               },
             },
             likes: {
@@ -125,7 +136,7 @@ export class CommunityService {
               select: { id: true },
             },
             _count: {
-              select: { songs: true },
+              select: { setlistSongs: true },
             },
           },
         }),
@@ -142,18 +153,18 @@ export class CommunityService {
           name: setlist.customer.name,
           profilePicture: setlist.customer.profilePicture ?? undefined,
         },
-        songCount: setlist._count.songs,
+        songCount: setlist._count.setlistSongs,
         viewCount: setlist.viewCount,
         likeCount: setlist.likeCount,
         isLikedByUser: setlist.likes.length > 0,
         sharedAt: setlist.sharedAt?.toISOString() || setlist.createdAt.toISOString(),
         createdAt: setlist.createdAt.toISOString(),
         updatedAt: setlist.updatedAt.toISOString(),
-        songPreview: setlist.songs.map(song => ({
-          id: song.id,
-          title: song.title,
-          artist: song.artist.name,
-          key: song.key ?? undefined,
+        songPreview: setlist.setlistSongs.map(ss => ({
+          id: ss.song.id,
+          title: ss.song.title,
+          artist: ss.song.artist.name,
+          key: ss.song.key ?? undefined,
         })),
       }));
 
@@ -201,13 +212,24 @@ export class CommunityService {
               profilePicture: true,
             },
           },
-          songs: {
+          setlistSongs: {
             take: 3,
+            orderBy: {
+              position: 'asc',
+            },
             select: {
-              id: true,
-              title: true,
-              artist: true,
-              key: true,
+              song: {
+                select: {
+                  id: true,
+                  title: true,
+                  artist: {
+                    select: {
+                      name: true,
+                    },
+                  },
+                  key: true,
+                },
+              },
             },
           },
           likes: {
@@ -215,7 +237,7 @@ export class CommunityService {
             select: { id: true },
           },
           _count: {
-            select: { songs: true },
+            select: { setlistSongs: true },
           },
         },
       });
@@ -229,18 +251,18 @@ export class CommunityService {
           name: setlist.customer.name,
           profilePicture: setlist.customer.profilePicture ?? undefined,
         },
-        songCount: setlist._count.songs,
+        songCount: setlist._count.setlistSongs,
         viewCount: setlist.viewCount,
         likeCount: setlist.likeCount,
         isLikedByUser: setlist.likes.length > 0,
         sharedAt: setlist.sharedAt?.toISOString() || setlist.createdAt.toISOString(),
         createdAt: setlist.createdAt.toISOString(),
         updatedAt: setlist.updatedAt.toISOString(),
-        songPreview: setlist.songs.map(song => ({
-          id: song.id,
-          title: song.title,
-          artist: song.artist.name,
-          key: song.key ?? undefined,
+        songPreview: setlist.setlistSongs.map(ss => ({
+          id: ss.song.id,
+          title: ss.song.title,
+          artist: ss.song.artist.name,
+          key: ss.song.key ?? undefined,
         })),
       }));
 
@@ -278,17 +300,28 @@ export class CommunityService {
                     profilePicture: true,
                   },
                 },
-                songs: {
+                setlistSongs: {
                   take: 3,
+                  orderBy: {
+                    position: 'asc',
+                  },
                   select: {
-                    id: true,
-                    title: true,
-                    artist: true,
-                    key: true,
+                    song: {
+                      select: {
+                        id: true,
+                        title: true,
+                        artist: {
+                          select: {
+                            name: true,
+                          },
+                        },
+                        key: true,
+                      },
+                    },
                   },
                 },
                 _count: {
-                  select: { songs: true },
+                  select: { setlistSongs: true },
                 },
               },
             },
@@ -306,18 +339,18 @@ export class CommunityService {
           name: like.setlist.customer.name,
           profilePicture: like.setlist.customer.profilePicture ?? undefined,
         },
-        songCount: like.setlist._count.songs,
+        songCount: like.setlist._count.setlistSongs,
         viewCount: like.setlist.viewCount,
         likeCount: like.setlist.likeCount,
         isLikedByUser: true, // Always true for liked setlists
         sharedAt: like.setlist.sharedAt?.toISOString() || like.setlist.createdAt.toISOString(),
         createdAt: like.setlist.createdAt.toISOString(),
         updatedAt: like.setlist.updatedAt.toISOString(),
-        songPreview: like.setlist.songs.map(song => ({
-          id: song.id,
-          title: song.title,
-          artist: song.artist.name,
-          key: song.key ?? undefined,
+        songPreview: like.setlist.setlistSongs.map(ss => ({
+          id: ss.song.id,
+          title: ss.song.title,
+          artist: ss.song.artist.name,
+          key: ss.song.key ?? undefined,
         })),
       }));
 
@@ -364,7 +397,11 @@ export class CommunityService {
       const targetSetlist = await this.prisma.setlist.findUnique({
         where: { id: targetSetlistId },
         include: {
-          songs: true,
+          setlistSongs: {
+            include: {
+              song: true,
+            },
+          },
           collaborators: {
             where: { customerId },
           },
@@ -386,24 +423,51 @@ export class CommunityService {
       }
 
       // Check if song is already in the setlist
-      const songExists = targetSetlist.songs.some(s => s.id === songId);
-      if (songExists) {
+      const existingSetlistSong = await this.prisma.setlistSong.findUnique({
+        where: {
+          setlistId_songId: {
+            setlistId: targetSetlistId,
+            songId,
+          },
+        },
+      });
+
+      if (existingSetlistSong) {
         throw new BadRequestException(`Song with ID ${songId} is already in the setlist`);
       }
 
-      // Add song to setlist
-      const updatedSetlist = await this.prisma.setlist.update({
-        where: { id: targetSetlistId },
+      // Get the next position (max position + 1)
+      const maxPosition = await this.prisma.setlistSong.aggregate({
+        where: { setlistId: targetSetlistId },
+        _max: { position: true },
+      });
+
+      const nextPosition = (maxPosition._max.position ?? -1) + 1;
+
+      // Add song to setlist using SetlistSong junction table
+      await this.prisma.setlistSong.create({
         data: {
-          songs: {
-            connect: { id: songId },
-          },
-          updatedAt: new Date(),
+          setlistId: targetSetlistId,
+          songId,
+          position: nextPosition,
+          addedBy: customerId,
         },
+      });
+
+      // Get updated setlist with proper structure
+      const updatedSetlist = await this.prisma.setlist.findUnique({
+        where: { id: targetSetlistId },
         include: {
-          songs: {
+          setlistSongs: {
             include: {
-              artist: true,
+              song: {
+                include: {
+                  artist: true,
+                },
+              },
+            },
+            orderBy: {
+              position: 'asc',
             },
           },
           collaborators: {
@@ -420,6 +484,13 @@ export class CommunityService {
         },
       });
 
+      // Transform for backward compatibility
+      const transformedSetlist = {
+        ...updatedSetlist,
+        songs: updatedSetlist?.setlistSongs?.map(ss => ss.song) || [],
+      };
+      delete (transformedSetlist as any).setlistSongs;
+
       // Log activity
       await this.prisma.setlistActivity.create({
         data: {
@@ -431,7 +502,7 @@ export class CommunityService {
         },
       });
 
-      return this.transformToSetlistResponseDto(updatedSetlist);
+      return this.transformToSetlistResponseDto(transformedSetlist);
     } catch (error: any) {
       this.logger.error(`Error adding song to setlist: ${error.message || 'Unknown error'}`, error.stack);
       throw error;
@@ -468,7 +539,11 @@ export class CommunityService {
       const targetSetlist = await this.prisma.setlist.findUnique({
         where: { id: targetSetlistId },
         include: {
-          songs: true,
+          setlistSongs: {
+            include: {
+              song: true,
+            },
+          },
           collaborators: {
             where: { customerId },
           },
@@ -489,27 +564,54 @@ export class CommunityService {
         throw new ForbiddenException('You do not have permission to modify this setlist');
       }
 
+      // Get existing song IDs in the setlist
+      const existingSetlistSongs = await this.prisma.setlistSong.findMany({
+        where: { setlistId: targetSetlistId },
+        select: { songId: true },
+      });
+      const existingSongIds = existingSetlistSongs.map(ss => ss.songId);
+
       // Filter out songs that are already in the setlist
-      const existingSongIds = targetSetlist.songs.map(s => s.id);
       const newSongIds = songIds.filter(id => !existingSongIds.includes(id));
 
       if (!newSongIds.length) {
         throw new BadRequestException('All songs are already in the setlist');
       }
 
-      // Add songs to setlist
-      const updatedSetlist = await this.prisma.setlist.update({
+      // Get the current max position
+      const maxPosition = await this.prisma.setlistSong.aggregate({
+        where: { setlistId: targetSetlistId },
+        _max: { position: true },
+      });
+
+      const startPosition = (maxPosition._max.position ?? -1) + 1;
+
+      // Create SetlistSong records for all new songs
+      const setlistSongData = newSongIds.map((songId, index) => ({
+        setlistId: targetSetlistId,
+        songId,
+        position: startPosition + index,
+        addedBy: customerId,
+      }));
+
+      await this.prisma.setlistSong.createMany({
+        data: setlistSongData,
+      });
+
+      // Get updated setlist with proper structure
+      const updatedSetlist = await this.prisma.setlist.findUnique({
         where: { id: targetSetlistId },
-        data: {
-          songs: {
-            connect: newSongIds.map(id => ({ id })),
-          },
-          updatedAt: new Date(),
-        },
         include: {
-          songs: {
+          setlistSongs: {
             include: {
-              artist: true,
+              song: {
+                include: {
+                  artist: true,
+                },
+              },
+            },
+            orderBy: {
+              position: 'asc',
             },
           },
           collaborators: {
@@ -526,6 +628,13 @@ export class CommunityService {
         },
       });
 
+      // Transform for backward compatibility
+      const transformedSetlist = {
+        ...updatedSetlist,
+        songs: updatedSetlist?.setlistSongs?.map(ss => ss.song) || [],
+      };
+      delete (transformedSetlist as any).setlistSongs;
+
       // Log activity
       await this.prisma.setlistActivity.create({
         data: {
@@ -537,7 +646,7 @@ export class CommunityService {
         },
       });
 
-      return this.transformToSetlistResponseDto(updatedSetlist);
+      return this.transformToSetlistResponseDto(transformedSetlist);
     } catch (error: any) {
       this.logger.error(`Error adding multiple songs to setlist: ${error.message || 'Unknown error'}`, error.stack);
       throw error;

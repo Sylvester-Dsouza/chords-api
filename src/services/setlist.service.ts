@@ -30,20 +30,36 @@ export class SetlistService {
         },
       },
       include: {
-        songs: {
+        setlistSongs: {
           include: {
-            artist: true,
+            song: {
+              include: {
+                artist: true,
+              },
+            },
+          },
+          orderBy: {
+            position: 'asc',
           },
         },
       },
     });
+
+    // Transform setlistSongs to songs for backward compatibility
+    const transformedSetlist = {
+      ...setlist,
+      songs: setlist.setlistSongs.map(ss => ss.song),
+    };
+
+    // Remove setlistSongs from response to maintain API contract
+    delete (transformedSetlist as any).setlistSongs;
 
     // Invalidate customer's setlists cache
     const cacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
     await this.cacheService.delete(cacheKey);
     this.logger.debug(`Invalidated setlists cache for customer ${customerId} after creation`);
 
-    return setlist;
+    return transformedSetlist;
   }
 
   async findAllByCustomer(customerId: string, since?: string, limit?: number): Promise<SetlistResponseDto[]> {
@@ -69,9 +85,16 @@ export class SetlistService {
           const setlists = await this.prisma.setlist.findMany({
             where,
             include: {
-              songs: {
+              setlistSongs: {
                 include: {
-                  artist: true,
+                  song: {
+                    include: {
+                      artist: true,
+                    },
+                  },
+                },
+                orderBy: {
+                  position: 'asc',
                 },
               },
             },
@@ -82,7 +105,18 @@ export class SetlistService {
           });
 
           this.logger.debug(`Found ${setlists.length} setlists for customer ${customerId} ${since ? `updated since ${since}` : 'total'}`);
-          return setlists;
+
+          // Transform setlistSongs to songs for backward compatibility
+          const transformedSetlists = setlists.map(setlist => {
+            const transformed = {
+              ...setlist,
+              songs: setlist.setlistSongs.map(ss => ss.song),
+            };
+            delete (transformed as any).setlistSongs; // Remove from response
+            return transformed;
+          });
+
+          return transformedSetlists;
         },
         since ? CacheTTL.SHORT : CacheTTL.MEDIUM // Shorter cache for incremental updates
       );
@@ -95,12 +129,19 @@ export class SetlistService {
         where.updatedAt = { gt: new Date(since) };
       }
 
-      return this.prisma.setlist.findMany({
+      const setlists = await this.prisma.setlist.findMany({
         where,
         include: {
-          songs: {
+          setlistSongs: {
             include: {
-              artist: true,
+              song: {
+                include: {
+                  artist: true,
+                },
+              },
+            },
+            orderBy: {
+              position: 'asc',
             },
           },
         },
@@ -109,6 +150,16 @@ export class SetlistService {
         },
         take: limit,
       });
+
+      // Transform setlistSongs to songs for backward compatibility
+      return setlists.map(setlist => {
+        const transformed = {
+          ...setlist,
+          songs: setlist.setlistSongs.map(ss => ss.song),
+        };
+        delete (transformed as any).setlistSongs; // Remove from response
+        return transformed;
+      });
     }
   }
 
@@ -116,23 +167,91 @@ export class SetlistService {
     // Use collaborative access checking instead of simple ownership check
     await this.checkSetlistAccess(id, customerId, 'VIEW');
 
-    // Get full setlist data with songs
-    const fullSetlist = await this.prisma.setlist.findUnique({
-      where: { id },
-      include: {
-        songs: {
-          include: {
-            artist: true,
+    // Create cache key for individual setlist
+    const cacheKey = this.cacheService.createKey(CachePrefix.SETLIST, id);
+
+    try {
+      return await this.cacheService.getOrSet(
+        cacheKey,
+        async () => {
+          this.logger.debug(`Cache miss for setlist ${id}, fetching from database`);
+
+          // Get full setlist data with songs
+          const fullSetlist = await this.prisma.setlist.findUnique({
+            where: { id },
+            include: {
+              setlistSongs: {
+                include: {
+                  song: {
+                    include: {
+                      artist: true,
+                    },
+                  },
+                },
+                orderBy: {
+                  position: 'asc',
+                },
+              },
+            },
+          });
+
+          if (!fullSetlist) {
+            throw new NotFoundException(`Setlist with ID ${id} not found`);
+          }
+
+          // Transform setlistSongs to songs for backward compatibility
+          const transformedSetlist = {
+            ...fullSetlist,
+            songs: fullSetlist.setlistSongs.map(ss => ss.song),
+          };
+
+          // Remove setlistSongs from response to maintain API contract
+          delete (transformedSetlist as any).setlistSongs;
+
+          return transformedSetlist;
+        },
+        CacheTTL.SHORT // Use short TTL since setlists change frequently
+      );
+    } catch (error: any) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(`Error fetching setlist ${id}: ${error.message}`);
+
+      // Fallback to direct database query if cache fails
+      const fullSetlist = await this.prisma.setlist.findUnique({
+        where: { id },
+        include: {
+          setlistSongs: {
+            include: {
+              song: {
+                include: {
+                  artist: true,
+                },
+              },
+            },
+            orderBy: {
+              position: 'asc',
+            },
           },
         },
-      },
-    });
+      });
 
-    if (!fullSetlist) {
-      throw new NotFoundException(`Setlist with ID ${id} not found`);
+      if (!fullSetlist) {
+        throw new NotFoundException(`Setlist with ID ${id} not found`);
+      }
+
+      // Transform setlistSongs to songs for backward compatibility
+      const transformedSetlist = {
+        ...fullSetlist,
+        songs: fullSetlist.setlistSongs.map(ss => ss.song),
+      };
+
+      // Remove setlistSongs from response to maintain API contract
+      delete (transformedSetlist as any).setlistSongs;
+
+      return transformedSetlist;
     }
-
-    return fullSetlist;
   }
 
   async update(id: string, customerId: string, updateSetlistDto: UpdateSetlistDto): Promise<SetlistResponseDto> {
@@ -140,16 +259,9 @@ export class SetlistService {
     await this.findOne(id, customerId);
 
     // Update setlist
-    const updatedSetlist = await this.prisma.setlist.update({
+    await this.prisma.setlist.update({
       where: { id },
       data: updateSetlistDto,
-      include: {
-        songs: {
-          include: {
-            artist: true,
-          },
-        },
-      },
     });
 
     // Invalidate customer's setlists cache
@@ -162,7 +274,8 @@ export class SetlistService {
     await this.cacheService.delete(setlistCacheKey);
     this.logger.debug(`Invalidated specific setlist cache for ${id} after update`);
 
-    return updatedSetlist;
+    // Return updated setlist with proper structure
+    return this.findOne(id, customerId);
   }
 
   async addSong(setlistId: string, customerId: string, songId: string): Promise<SetlistResponseDto> {
@@ -179,30 +292,60 @@ export class SetlistService {
     }
 
     // Check if song is already in the setlist
-    const songs = setlist.songs || [];
-    const songExists = songs.some(s => s.id === songId);
-    if (songExists) {
-      throw new BadRequestException(`Song with ID ${songId} is already in the setlist`);
-    }
-
-    // Add song to setlist
-    const updatedSetlist = await this.prisma.setlist.update({
-      where: { id: setlistId },
-      data: {
-        songs: {
-          connect: { id: songId },
-        },
-      },
-      include: {
-        songs: {
-          include: {
-            artist: true,
-          },
+    const existingSetlistSong = await this.prisma.setlistSong.findUnique({
+      where: {
+        setlistId_songId: {
+          setlistId,
+          songId,
         },
       },
     });
 
-    return updatedSetlist;
+    if (existingSetlistSong) {
+      throw new BadRequestException(`Song with ID ${songId} is already in the setlist`);
+    }
+
+    // Check if we need to migrate existing songs first
+    const existingSetlistSongs = await this.prisma.setlistSong.findMany({
+      where: { setlistId },
+    });
+
+    // Migration is no longer needed since the old relation doesn't exist
+
+    // Get the next position (max position + 1)
+    const maxPosition = await this.prisma.setlistSong.aggregate({
+      where: { setlistId },
+      _max: { position: true },
+    });
+
+    const nextPosition = (maxPosition._max.position ?? -1) + 1;
+
+    // Add song to setlist using SetlistSong junction table
+    await this.prisma.setlistSong.create({
+      data: {
+        setlistId,
+        songId,
+        position: nextPosition,
+        addedBy: customerId,
+      },
+    });
+
+    // Invalidate cache - BOTH list and individual setlist
+    const cacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
+    await this.cacheService.delete(cacheKey);
+    this.logger.debug(`Invalidated setlists cache for customer ${customerId} after adding song`);
+
+    // Also invalidate specific setlist cache
+    const setlistCacheKey = this.cacheService.createKey(CachePrefix.SETLIST, setlistId);
+    await this.cacheService.delete(setlistCacheKey);
+    this.logger.debug(`Invalidated specific setlist cache for ${setlistId} after adding song`);
+
+    // Aggressively invalidate all setlist-related caches to ensure consistency
+    await this.cacheService.deleteByPrefix(CachePrefix.SETLISTS);
+    this.logger.debug(`Aggressively invalidated all setlist caches after adding song`);
+
+    // Return updated setlist
+    return this.findOne(setlistId, customerId);
   }
 
   async addMultipleSongs(setlistId: string, customerId: string, songIds: string[]): Promise<SetlistResponseDto> {
@@ -224,7 +367,11 @@ export class SetlistService {
     }
 
     // Get existing song IDs in the setlist
-    const existingSongIds = (setlist.songs || []).map(s => s.id);
+    const existingSetlistSongs = await this.prisma.setlistSong.findMany({
+      where: { setlistId },
+      select: { songId: true },
+    });
+    const existingSongIds = existingSetlistSongs.map(ss => ss.songId);
 
     // Filter out songs that are already in the setlist
     const newSongIds = songIds.filter(id => !existingSongIds.includes(id));
@@ -235,21 +382,24 @@ export class SetlistService {
 
     this.logger.debug(`Adding ${newSongIds.length} new songs to setlist (${songIds.length - newSongIds.length} were already in setlist)`);
 
-    // Add all new songs to setlist in a single operation
-    const updatedSetlist = await this.prisma.setlist.update({
-      where: { id: setlistId },
-      data: {
-        songs: {
-          connect: newSongIds.map(id => ({ id })),
-        },
-      },
-      include: {
-        songs: {
-          include: {
-            artist: true,
-          },
-        },
-      },
+    // Get the current max position
+    const maxPosition = await this.prisma.setlistSong.aggregate({
+      where: { setlistId },
+      _max: { position: true },
+    });
+
+    const startPosition = (maxPosition._max.position ?? -1) + 1;
+
+    // Create SetlistSong records for all new songs
+    const setlistSongData = newSongIds.map((songId, index) => ({
+      setlistId,
+      songId,
+      position: startPosition + index,
+      addedBy: customerId,
+    }));
+
+    await this.prisma.setlistSong.createMany({
+      data: setlistSongData,
     });
 
     // Invalidate customer's setlists cache
@@ -257,7 +407,17 @@ export class SetlistService {
     await this.cacheService.delete(cacheKey);
     this.logger.debug(`Invalidated setlists cache for customer ${customerId} after adding songs`);
 
-    return updatedSetlist;
+    // Also invalidate specific setlist cache
+    const setlistCacheKey = this.cacheService.createKey(CachePrefix.SETLIST, setlistId);
+    await this.cacheService.delete(setlistCacheKey);
+    this.logger.debug(`Invalidated specific setlist cache for ${setlistId} after adding songs`);
+
+    // Aggressively invalidate all setlist-related caches to ensure consistency
+    await this.cacheService.deleteByPrefix(CachePrefix.SETLISTS);
+    this.logger.debug(`Aggressively invalidated all setlist caches after adding songs`);
+
+    // Return updated setlist
+    return this.findOne(setlistId, customerId);
   }
 
   async removeSong(setlistId: string, customerId: string, songId: string): Promise<SetlistResponseDto> {
@@ -274,30 +434,63 @@ export class SetlistService {
     }
 
     // Check if song is in the setlist
-    const songs = setlist.songs || [];
-    const songExists = songs.some(s => s.id === songId);
-    if (!songExists) {
-      throw new BadRequestException(`Song with ID ${songId} is not in the setlist`);
-    }
-
-    // Remove song from setlist
-    const updatedSetlist = await this.prisma.setlist.update({
-      where: { id: setlistId },
-      data: {
-        songs: {
-          disconnect: { id: songId },
-        },
-      },
-      include: {
-        songs: {
-          include: {
-            artist: true,
-          },
+    const setlistSong = await this.prisma.setlistSong.findUnique({
+      where: {
+        setlistId_songId: {
+          setlistId,
+          songId,
         },
       },
     });
 
-    return updatedSetlist;
+    if (!setlistSong) {
+      throw new BadRequestException(`Song with ID ${songId} is not in the setlist`);
+    }
+
+    // Remove song from setlist and reorder remaining songs
+    await this.prisma.$transaction(async (tx) => {
+      // Delete the setlist song
+      await tx.setlistSong.delete({
+        where: {
+          setlistId_songId: {
+            setlistId,
+            songId,
+          },
+        },
+      });
+
+      // Reorder remaining songs to fill the gap
+      await tx.setlistSong.updateMany({
+        where: {
+          setlistId,
+          position: {
+            gt: setlistSong.position,
+          },
+        },
+        data: {
+          position: {
+            decrement: 1,
+          },
+        },
+      });
+    });
+
+    // Invalidate cache - BOTH list and individual setlist
+    const cacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
+    await this.cacheService.delete(cacheKey);
+    this.logger.debug(`Invalidated setlists cache for customer ${customerId} after removing song`);
+
+    // Also invalidate specific setlist cache
+    const setlistCacheKey = this.cacheService.createKey(CachePrefix.SETLIST, setlistId);
+    await this.cacheService.delete(setlistCacheKey);
+    this.logger.debug(`Invalidated specific setlist cache for ${setlistId} after removing song`);
+
+    // Aggressively invalidate all setlist-related caches to ensure consistency
+    await this.cacheService.deleteByPrefix(CachePrefix.SETLISTS);
+    this.logger.debug(`Aggressively invalidated all setlist caches after removing song`);
+
+    // Return updated setlist
+    return this.findOne(setlistId, customerId);
   }
 
   async removeMultipleSongs(setlistId: string, customerId: string, songIds: string[]): Promise<SetlistResponseDto> {
@@ -318,8 +511,14 @@ export class SetlistService {
       throw new NotFoundException(`Songs with IDs ${missingSongIds.join(', ')} not found`);
     }
 
-    // Get existing song IDs in the setlist
-    const existingSongIds = (setlist.songs || []).map(s => s.id);
+    // Get existing setlist songs
+    const existingSetlistSongs = await this.prisma.setlistSong.findMany({
+      where: { setlistId },
+      select: { songId: true, position: true },
+      orderBy: { position: 'asc' },
+    });
+
+    const existingSongIds = existingSetlistSongs.map(ss => ss.songId);
 
     // Filter to only songs that are actually in the setlist
     const songsToRemove = songIds.filter(id => existingSongIds.includes(id));
@@ -330,21 +529,31 @@ export class SetlistService {
 
     this.logger.debug(`Removing ${songsToRemove.length} songs from setlist (${songIds.length - songsToRemove.length} were not in setlist)`);
 
-    // Remove all songs from setlist in a single operation
-    const updatedSetlist = await this.prisma.setlist.update({
-      where: { id: setlistId },
-      data: {
-        songs: {
-          disconnect: songsToRemove.map(id => ({ id })),
-        },
-      },
-      include: {
-        songs: {
-          include: {
-            artist: true,
+    // Remove songs and reorder in a transaction
+    await this.prisma.$transaction(async (tx) => {
+      // Delete the setlist songs
+      await tx.setlistSong.deleteMany({
+        where: {
+          setlistId,
+          songId: {
+            in: songsToRemove,
           },
         },
-      },
+      });
+
+      // Get remaining songs and reorder them
+      const remainingSongs = await tx.setlistSong.findMany({
+        where: { setlistId },
+        orderBy: { position: 'asc' },
+      });
+
+      // Update positions to be sequential (0, 1, 2, ...)
+      for (let i = 0; i < remainingSongs.length; i++) {
+        await tx.setlistSong.update({
+          where: { id: remainingSongs[i].id },
+          data: { position: i },
+        });
+      }
     });
 
     // Invalidate customer's setlists cache
@@ -352,7 +561,107 @@ export class SetlistService {
     await this.cacheService.delete(cacheKey);
     this.logger.debug(`Invalidated setlists cache for customer ${customerId} after removing songs`);
 
-    return updatedSetlist;
+    // Also invalidate specific setlist cache
+    const setlistCacheKey = this.cacheService.createKey(CachePrefix.SETLIST, setlistId);
+    await this.cacheService.delete(setlistCacheKey);
+    this.logger.debug(`Invalidated specific setlist cache for ${setlistId} after removing songs`);
+
+    // Aggressively invalidate all setlist-related caches to ensure consistency
+    await this.cacheService.deleteByPrefix(CachePrefix.SETLISTS);
+    this.logger.debug(`Aggressively invalidated all setlist caches after removing songs`);
+
+    // Return updated setlist
+    return this.findOne(setlistId, customerId);
+  }
+
+  async reorderSongs(setlistId: string, customerId: string, songIds: string[]): Promise<SetlistResponseDto> {
+    this.logger.debug(`Reordering ${songIds.length} songs in setlist ${setlistId} for customer ${customerId}`);
+    this.logger.debug(`Song IDs to reorder: ${JSON.stringify(songIds)}`);
+
+    // Check if setlist exists and user has permission
+    const setlist = await this.findOne(setlistId, customerId);
+    this.logger.debug(`Found setlist: ${setlist.name} with ${setlist.songs?.length || 0} songs`);
+
+    // Get current songs in the setlist
+    this.logger.debug(`Querying SetlistSong table for setlist ${setlistId}`);
+    let currentSetlistSongs = await this.prisma.setlistSong.findMany({
+      where: { setlistId },
+      include: {
+        song: {
+          include: {
+            artist: true,
+          },
+        },
+      },
+      orderBy: { position: 'asc' },
+    });
+
+    this.logger.debug(`Found ${currentSetlistSongs.length} SetlistSong records`);
+
+    // Migration is no longer needed since the old relation doesn't exist
+
+    const currentSongIds = currentSetlistSongs.map(ss => ss.songId);
+    this.logger.debug(`Current song IDs: ${JSON.stringify(currentSongIds)}`);
+
+    // Validate that all provided song IDs exist in the setlist
+    const missingSongIds = songIds.filter(id => !currentSongIds.includes(id));
+    if (missingSongIds.length > 0) {
+      throw new BadRequestException(`Songs with IDs ${missingSongIds.join(', ')} are not in the setlist`);
+    }
+
+    // Validate that all songs in setlist are included in the reorder
+    const extraSongIds = currentSongIds.filter(id => !songIds.includes(id));
+    if (extraSongIds.length > 0) {
+      throw new BadRequestException(`Reorder must include all songs currently in the setlist. Missing: ${extraSongIds.join(', ')}`);
+    }
+
+    // Update positions in a transaction
+    await this.prisma.$transaction(async (tx) => {
+      // Update each song's position
+      for (let i = 0; i < songIds.length; i++) {
+        await tx.setlistSong.update({
+          where: {
+            setlistId_songId: {
+              setlistId,
+              songId: songIds[i],
+            },
+          },
+          data: {
+            position: i,
+          },
+        });
+      }
+
+      // Log the reorder activity
+      await tx.setlistActivity.create({
+        data: {
+          setlistId,
+          customerId,
+          action: 'SONG_REORDERED',
+          details: JSON.stringify({
+            songIds,
+            previousOrder: currentSongIds
+          }),
+          version: (setlist.version || 0) + 1,
+        },
+      });
+
+      // Update setlist version
+      await tx.setlist.update({
+        where: { id: setlistId },
+        data: { version: { increment: 1 } },
+      });
+    });
+
+    this.logger.debug(`Successfully reordered songs in setlist ${setlistId}`);
+
+    // Invalidate cache
+    const cacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
+    await this.cacheService.delete(cacheKey);
+    this.logger.debug(`Invalidated setlists cache for customer ${customerId} after reordering`);
+
+    // Return updated setlist
+    return this.findOne(setlistId, customerId);
   }
 
   async remove(id: string, customerId: string): Promise<SetlistResponseDto> {
@@ -360,16 +669,28 @@ export class SetlistService {
     await this.findOne(id, customerId);
 
     // Hard delete setlist - completely remove from database
+    // Note: SetlistSong records will be automatically deleted due to CASCADE
     const deletedSetlist = await this.prisma.setlist.delete({
       where: { id },
       include: {
-        songs: {
+        setlistSongs: {
           include: {
-            artist: true,
+            song: {
+              include: {
+                artist: true,
+              },
+            },
           },
         },
       },
     });
+
+    // Transform for response
+    const transformedDeletedSetlist = {
+      ...deletedSetlist,
+      songs: deletedSetlist.setlistSongs.map(ss => ss.song),
+    };
+    delete (transformedDeletedSetlist as any).setlistSongs;
 
     // Invalidate customer's setlists cache
     const cacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
@@ -385,7 +706,7 @@ export class SetlistService {
     await this.cacheService.deleteByPrefix(CachePrefix.SETLISTS);
     this.logger.debug(`Invalidated all setlist caches after deletion of ${id}`);
 
-    return deletedSetlist;
+    return transformedDeletedSetlist;
   }
 
   // ==================== COLLABORATIVE FEATURES ====================
@@ -620,9 +941,16 @@ export class SetlistService {
     const fullSetlist = await this.prisma.setlist.findUnique({
       where: { id: setlistId },
       include: {
-        songs: {
+        setlistSongs: {
           include: {
-            artist: true,
+            song: {
+              include: {
+                artist: true,
+              },
+            },
+          },
+          orderBy: {
+            position: 'asc',
           },
         },
         collaborators: {
@@ -694,8 +1022,15 @@ export class SetlistService {
       throw new NotFoundException('Setlist not found');
     }
 
-    return {
+    // Transform setlistSongs to songs for backward compatibility
+    const transformedSetlist = {
       ...fullSetlist,
+      songs: fullSetlist.setlistSongs.map(ss => ss.song),
+    };
+    delete (transformedSetlist as any).setlistSongs;
+
+    return {
+      ...transformedSetlist,
       collaborators: fullSetlist.collaborators.map(c => ({
         id: c.id,
         customer: {
@@ -780,9 +1115,16 @@ export class SetlistService {
       where: { id: setlistId },
       data: updateData,
       include: {
-        songs: {
+        setlistSongs: {
           include: {
-            artist: true,
+            song: {
+              include: {
+                artist: true,
+              },
+            },
+          },
+          orderBy: {
+            position: 'asc',
           },
         },
         collaborators: {
@@ -810,9 +1152,16 @@ export class SetlistService {
     const cacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
     await this.cacheService.delete(cacheKey);
 
-    return {
+    // Transform setlistSongs to songs for backward compatibility
+    const transformedSetlist = {
       ...updatedSetlist,
-      collaborators: updatedSetlist.collaborators.map(c => ({
+      songs: updatedSetlist.setlistSongs.map(ss => ss.song),
+    };
+    delete (transformedSetlist as any).setlistSongs;
+
+    return {
+      ...transformedSetlist,
+      collaborators: updatedSetlist.collaborators?.map(c => ({
         id: c.id,
         customer: {
           id: c.customer.id,
@@ -836,9 +1185,16 @@ export class SetlistService {
     const setlist = await this.prisma.setlist.findUnique({
       where: { shareCode },
       include: {
-        songs: {
+        setlistSongs: {
           include: {
-            artist: true,
+            song: {
+              include: {
+                artist: true,
+              },
+            },
+          },
+          orderBy: {
+            position: 'asc',
           },
         },
         customer: {
@@ -855,7 +1211,14 @@ export class SetlistService {
       throw new NotFoundException('Invalid share code or setlist not found');
     }
 
-    return setlist as SetlistResponseDto;
+    // Transform setlistSongs to songs for backward compatibility
+    const transformedSetlist = {
+      ...setlist,
+      songs: setlist.setlistSongs.map(ss => ss.song),
+    };
+    delete (transformedSetlist as any).setlistSongs;
+
+    return transformedSetlist as SetlistResponseDto;
   }
 
   /**
@@ -931,9 +1294,16 @@ export class SetlistService {
       include: {
         setlist: {
           include: {
-            songs: {
+            setlistSongs: {
               include: {
-                artist: true,
+                song: {
+                  include: {
+                    artist: true,
+                  },
+                },
+              },
+              orderBy: {
+                position: 'asc',
               },
             },
             customer: {
@@ -951,7 +1321,15 @@ export class SetlistService {
       },
     });
 
-    return collaborations.map(c => c.setlist as SetlistResponseDto);
+    return collaborations.map(c => {
+      // Transform setlistSongs to songs for backward compatibility
+      const transformedSetlist = {
+        ...c.setlist,
+        songs: c.setlist.setlistSongs.map(ss => ss.song),
+      };
+      delete (transformedSetlist as any).setlistSongs;
+      return transformedSetlist as SetlistResponseDto;
+    });
   }
 
   /**
@@ -1163,9 +1541,16 @@ export class SetlistService {
         sharedAt: new Date(),
       },
       include: {
-        songs: {
+        setlistSongs: {
           include: {
-            artist: true,
+            song: {
+              include: {
+                artist: true,
+              },
+            },
+          },
+          orderBy: {
+            position: 'asc',
           },
         },
       },
@@ -1181,7 +1566,15 @@ export class SetlistService {
     this.logger.debug(`Invalidated setlists cache for customer ${customerId} after making public`);
 
     this.logger.log(`Setlist ${setlistId} made public by customer ${customerId}`);
-    return updatedSetlist;
+
+    // Transform setlistSongs to songs for backward compatibility
+    const transformedSetlist = {
+      ...updatedSetlist,
+      songs: updatedSetlist.setlistSongs.map(ss => ss.song),
+    };
+    delete (transformedSetlist as any).setlistSongs;
+
+    return transformedSetlist;
   }
 
   async makePrivate(setlistId: string, customerId: string): Promise<SetlistResponseDto> {
@@ -1211,9 +1604,16 @@ export class SetlistService {
         sharedAt: null,
       },
       include: {
-        songs: {
+        setlistSongs: {
           include: {
-            artist: true,
+            song: {
+              include: {
+                artist: true,
+              },
+            },
+          },
+          orderBy: {
+            position: 'asc',
           },
         },
       },
@@ -1229,7 +1629,15 @@ export class SetlistService {
     this.logger.debug(`Invalidated setlists cache for customer ${customerId} after making private`);
 
     this.logger.log(`Setlist ${setlistId} made private by customer ${customerId}`);
-    return updatedSetlist;
+
+    // Transform setlistSongs to songs for backward compatibility
+    const transformedSetlist = {
+      ...updatedSetlist,
+      songs: updatedSetlist.setlistSongs.map(ss => ss.song),
+    };
+    delete (transformedSetlist as any).setlistSongs;
+
+    return transformedSetlist;
   }
 
   async likeSetlist(setlistId: string, customerId: string): Promise<{ success: boolean; likeCount: number }> {
@@ -1383,5 +1791,38 @@ export class SetlistService {
 
     this.logger.log(`Setlist ${setlistId} view count incremented by customer ${customerId}`);
     return { success: true, viewCount: updatedSetlist.viewCount };
+  }
+
+  /**
+   * Clear all setlist-related caches for a user
+   * This is useful for debugging cache issues and forcing fresh data
+   */
+  async clearUserCaches(customerId: string): Promise<{ success: boolean; message: string }> {
+    try {
+      this.logger.debug(`Clearing all setlist caches for customer ${customerId}`);
+
+      // Clear user's setlists list cache
+      const setlistsCacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
+      await this.cacheService.delete(setlistsCacheKey);
+
+      // Clear all setlist list caches (with different filters)
+      await this.cacheService.deleteByPrefix(CachePrefix.SETLISTS);
+
+      // Clear all individual setlist caches
+      await this.cacheService.deleteByPrefix(CachePrefix.SETLIST);
+
+      this.logger.log(`Successfully cleared all setlist caches for customer ${customerId}`);
+
+      return {
+        success: true,
+        message: 'All setlist caches cleared successfully'
+      };
+    } catch (error: any) {
+      this.logger.error(`Error clearing caches for customer ${customerId}: ${error.message}`);
+      return {
+        success: false,
+        message: `Failed to clear caches: ${error.message}`
+      };
+    }
   }
 }
