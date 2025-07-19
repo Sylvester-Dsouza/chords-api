@@ -209,14 +209,8 @@ export class MediaService {
           },
           select: { id: true, title: true, imageUrl: true }
         }),
-        this.prisma.karaoke.findMany({
-          where: {
-            fileUrl: {
-              in: urls.filter(url => url != null)
-            }
-          },
-          select: { id: true, fileUrl: true, song: { select: { title: true } } }
-        })
+        // Karaoke files no longer have a single fileUrl, they use individual track files
+        Promise.resolve([])
       ]);
 
       console.log(`📊 Database results: ${songs.length} songs, ${collections.length} collections, ${artists.length} artists, ${banners.length} banners, ${karaokeFiles.length} karaoke files`);
@@ -281,18 +275,18 @@ export class MediaService {
         }
       });
 
-      // Process karaoke files
-      karaokeFiles.forEach(karaoke => {
-        if (karaoke.fileUrl) {
-          if (!usageMap.has(karaoke.fileUrl)) usageMap.set(karaoke.fileUrl, []);
-          usageMap.get(karaoke.fileUrl)!.push({
-            type: 'karaoke',
-            id: karaoke.id,
-            title: karaoke.song?.title || 'Unknown Song',
-            field: 'fileUrl'
-          });
-        }
-      });
+      // Process karaoke files - disabled since we moved to multi-track karaoke
+      // karaokeFiles.forEach(karaoke => {
+      //   if (karaoke.fileUrl) {
+      //     if (!usageMap.has(karaoke.fileUrl)) usageMap.set(karaoke.fileUrl, []);
+      //     usageMap.get(karaoke.fileUrl)!.push({
+      //       type: 'karaoke',
+      //       id: karaoke.id,
+      //       title: karaoke.song?.title || 'Unknown Song',
+      //       field: 'fileUrl'
+      //     });
+      //   }
+      // });
 
       console.log(`🗺️ Usage map created with ${usageMap.size} unique URLs`);
 
@@ -440,10 +434,8 @@ export class MediaService {
           where: { imageUrl: fileUrl },
           select: { id: true, title: true }
         }),
-        this.prisma.karaoke.findMany({
-          where: { fileUrl: fileUrl },
-          select: { id: true, song: { select: { title: true } } }
-        })
+        // Karaoke files no longer have a single fileUrl
+        Promise.resolve([])
       ]);
 
       // Process results
@@ -451,7 +443,7 @@ export class MediaService {
       collections.forEach(collection => usage.push({ type: 'collection', id: collection.id, title: collection.name, field: 'imageUrl' }));
       artists.forEach(artist => usage.push({ type: 'artist', id: artist.id, title: artist.name, field: 'imageUrl' }));
       banners.forEach(banner => usage.push({ type: 'banner', id: banner.id, title: banner.title, field: 'imageUrl' }));
-      karaokeFiles.forEach(karaoke => usage.push({ type: 'karaoke', id: karaoke.id, title: karaoke.song?.title || 'Unknown Song', field: 'fileUrl' }));
+      // karaokeFiles.forEach(karaoke => usage.push({ type: 'karaoke', id: karaoke.id, title: karaoke.song?.title || 'Unknown Song', field: 'fileUrl' }));
 
     } catch (error) {
       console.error('Error finding file usage:', error);

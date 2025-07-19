@@ -512,7 +512,6 @@ export class SongService {
               const karaokeDto = new KaraokeResponseDto();
               karaokeDto.id = song.karaoke.id;
               karaokeDto.songId = song.karaoke.songId;
-              karaokeDto.fileUrl = song.karaoke.fileUrl;
               karaokeDto.fileSize = song.karaoke.fileSize;
               karaokeDto.duration = song.karaoke.duration;
               karaokeDto.key = song.karaoke.key;
@@ -678,14 +677,18 @@ export class SongService {
   }
 
   async findOne(id: string): Promise<SongResponseDto> {
+    console.log(`\n\n\n=== SONG SERVICE FINDONE CALLED ===`);
+    console.log(`Song ID: ${id}`);
+    console.log(`=================================\n\n\n`);
+    
     const cacheKey = this.cacheService.createKey(CachePrefix.SONG, id);
 
     try {
-      // Try to get from cache first
-      const song = await this.cacheService.getOrSet(
-        cacheKey,
-        async () => {
+      // TEMPORARILY DISABLE CACHE FOR DEBUGGING - Force fresh data
+      console.log(`🔥 [Backend] BYPASSING CACHE FOR SONG ${id} - FORCING FRESH DATA`);
+      const song = await (async () => {
           this.logger.debug(`Cache miss for song ${id}, fetching from database`);
+          console.log(`🎤 [Backend] Fetching song with karaoke data for ID: ${id}`);
           const song = await this.prisma.song.findUnique({
             where: { id },
             include: {
@@ -703,15 +706,21 @@ export class SongService {
               },
             },
           });
+          console.log(`🎤 [Backend] Raw song data:`, {
+            id: song?.id,
+            title: song?.title,
+            hasKaraoke: !!song?.karaoke,
+            karaokeId: song?.karaoke?.id,
+            karaokeStatus: song?.karaoke?.status,
+            trackCount: song?.karaoke?.tracks?.length || 0
+          });
 
           if (!song) {
             throw new NotFoundException(`Song with ID ${id} not found`);
           }
 
           return song;
-        },
-        CacheTTL.LONG // Songs don't change often
-      );
+        })();
 
       // Map to DTO
       return this.mapSongToDto(song);
@@ -767,6 +776,13 @@ export class SongService {
    * Helper method to map a Prisma song object to SongResponseDto
    */
   private mapSongToDto(song: any): SongResponseDto {
+    console.log(`\n🔥🔥🔥 [Backend] MAPPING SONG TO DTO 🔥🔥🔥`);
+    console.log(`🎤 [Backend] Song ID: ${song.id}`);
+    console.log(`🎤 [Backend] Song Title: ${song.title}`);
+    console.log(`🎤 [Backend] Has Karaoke: ${!!song.karaoke}`);
+    console.log(`🎤 [Backend] Karaoke Object:`, song.karaoke);
+    console.log(`🔥🔥🔥 [Backend] END INITIAL DEBUG 🔥🔥🔥\n`);
+    
     const dto = new SongResponseDto();
 
     dto.id = song.id;
@@ -818,11 +834,17 @@ export class SongService {
     dto.metaDescription = song.metaDescription;
 
     // Map karaoke data if available
+    console.log(`🎤 [Backend] Mapping karaoke data for song ${song.id}:`, {
+      hasKaraoke: !!song.karaoke,
+      karaokeId: song.karaoke?.id,
+      status: song.karaoke?.status
+    });
+    
     if (song.karaoke) {
+      console.log(`🎤 [Backend] Creating karaoke DTO`);
       const karaokeDto = new KaraokeResponseDto();
       karaokeDto.id = song.karaoke.id;
       karaokeDto.songId = song.karaoke.songId;
-      karaokeDto.fileUrl = song.karaoke.fileUrl;
       karaokeDto.fileSize = song.karaoke.fileSize;
       karaokeDto.duration = song.karaoke.duration;
       karaokeDto.key = song.karaoke.key;
@@ -837,6 +859,13 @@ export class SongService {
       // Map karaoke tracks if available
       // Use type assertion to access tracks property
       const tracks = (song.karaoke as any).tracks;
+      console.log(`🎤 [Backend] Processing tracks:`, {
+        hasTracks: !!tracks,
+        isArray: Array.isArray(tracks),
+        trackCount: tracks?.length || 0,
+        trackTypes: tracks?.map((t: any) => t.trackType) || []
+      });
+      
       if (tracks && Array.isArray(tracks)) {
         karaokeDto.tracks = tracks.map((track: any) => ({
           id: track.id,
@@ -853,15 +882,24 @@ export class SongService {
           notes: track.notes,
           status: track.status,
         }));
+        console.log(`🎤 [Backend] Mapped ${karaokeDto.tracks.length} tracks`);
       } else {
         karaokeDto.tracks = [];
+        console.log(`🎤 [Backend] No tracks found, setting empty array`);
       }
 
       dto.karaoke = karaokeDto;
+      console.log(`🎤 [Backend] Final karaoke DTO:`, {
+        id: karaokeDto.id,
+        status: karaokeDto.status,
+        trackCount: karaokeDto.tracks?.length || 0
+      });
     } else {
       dto.karaoke = null;
+      console.log(`🎤 [Backend] No karaoke data, setting null`);
     }
 
+    console.log(`🎤 [Backend] Final song DTO has karaoke:`, !!dto.karaoke);
     return dto;
   }
 

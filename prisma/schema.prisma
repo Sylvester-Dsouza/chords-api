@@ -329,8 +329,7 @@ model SongRating {
 model Karaoke {
   id          String   @id @default(uuid())
   songId      String   @unique @map("songId") // One-to-one relationship with Song
-  fileUrl     String   @map("fileUrl") // URL to karaoke backing track in Supabase Storage
-  fileSize    Int?     @map("fileSize") // File size in bytes
+  fileSize    Int?     @map("fileSize") // Total file size in bytes (sum of all tracks)
   duration    Int?     @map("duration") // Duration in seconds
   key         String?  @map("key") // Original key for karaoke track
   uploadedBy  String?  @map("uploadedBy") // User ID who uploaded the karaoke

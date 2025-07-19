@@ -50,7 +50,6 @@ export class KaraokeService {
         karaoke = await this.prisma.karaoke.update({
           where: { songId },
           data: {
-            fileUrl,
             fileSize,
             duration: karaokeData.duration,
             key: karaokeData.key || song.key,
@@ -66,7 +65,6 @@ export class KaraokeService {
         karaoke = await this.prisma.karaoke.create({
           data: {
             songId,
-            fileUrl,
             fileSize,
             duration: karaokeData.duration,
             key: karaokeData.key || song.key,
@@ -189,7 +187,6 @@ export class KaraokeService {
     return {
       id: karaoke.id,
       songId: karaoke.songId,
-      fileUrl: karaoke.fileUrl,
       fileSize: karaoke.fileSize,
       duration: karaoke.duration,
       key: karaoke.key,
@@ -217,7 +214,6 @@ export class KaraokeService {
           const karaoke = await this.prisma.karaoke.findUnique({
             where: { songId },
             select: {
-              fileUrl: true,
               fileSize: true,
               duration: true,
               status: true,
@@ -232,11 +228,8 @@ export class KaraokeService {
             throw new BadRequestException(`Karaoke for song ${songId} is not available (status: ${karaoke.status})`);
           }
 
-          return {
-            downloadUrl: karaoke.fileUrl,
-            fileSize: karaoke.fileSize || 0,
-            duration: karaoke.duration || 0,
-          };
+          // For multi-track karaoke, use individual track download URLs instead
+          throw new BadRequestException('Multi-track karaoke detected. Use individual track download URLs instead.');
         },
         CacheTTL.SHORT // 1 minute cache for download URLs
       );
@@ -527,7 +520,6 @@ export class KaraokeService {
           karaoke = await tx.karaoke.update({
             where: { songId },
             data: {
-              fileUrl: '', // No longer used for multi-track
               fileSize: Object.values(trackFiles).reduce((sum, file) => sum + file.fileSize, 0),
               duration: karaokeData.duration,
               key: karaokeData.key || song.key,
@@ -543,7 +535,6 @@ export class KaraokeService {
           karaoke = await tx.karaoke.create({
             data: {
               songId,
-              fileUrl: '', // No longer used for multi-track
               fileSize: Object.values(trackFiles).reduce((sum, file) => sum + file.fileSize, 0),
               duration: karaokeData.duration,
               key: karaokeData.key || song.key,

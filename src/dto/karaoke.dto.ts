@@ -89,10 +89,7 @@ export class KaraokeResponseDto {
   @ApiProperty({ description: 'Song ID' })
   songId: string = '';
 
-  @ApiProperty({ example: 'https://storage.supabase.co/bucket/karaoke/song-123-karaoke.mp3', description: 'URL to karaoke backing track' })
-  fileUrl: string = '';
-
-  @ApiProperty({ example: 5242880, description: 'Karaoke file size in bytes' })
+  @ApiProperty({ example: 5242880, description: 'Total karaoke file size in bytes (sum of all tracks)' })
   fileSize?: number | null = null;
 
   @ApiProperty({ example: 240, description: 'Karaoke duration in seconds' })
