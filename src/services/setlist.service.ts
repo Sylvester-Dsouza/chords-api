@@ -330,19 +330,16 @@ export class SetlistService {
       },
     });
 
-    // Invalidate cache - BOTH list and individual setlist
-    const cacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
-    await this.cacheService.delete(cacheKey);
-    this.logger.debug(`Invalidated setlists cache for customer ${customerId} after adding song`);
-
-    // Also invalidate specific setlist cache
+    // Targeted cache invalidation - only invalidate what's necessary
     const setlistCacheKey = this.cacheService.createKey(CachePrefix.SETLIST, setlistId);
-    await this.cacheService.delete(setlistCacheKey);
-    this.logger.debug(`Invalidated specific setlist cache for ${setlistId} after adding song`);
-
-    // Aggressively invalidate all setlist-related caches to ensure consistency
-    await this.cacheService.deleteByPrefix(CachePrefix.SETLISTS);
-    this.logger.debug(`Aggressively invalidated all setlist caches after adding song`);
+    const setlistsCacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
+  
+    await Promise.all([
+      this.cacheService.delete(setlistCacheKey),
+      this.cacheService.delete(setlistsCacheKey),
+    ]);
+  
+    this.logger.debug(`Invalidated targeted caches for setlist ${setlistId} after adding song`);
 
     // Return updated setlist
     return this.findOne(setlistId, customerId);
@@ -615,22 +612,33 @@ export class SetlistService {
       throw new BadRequestException(`Reorder must include all songs currently in the setlist. Missing: ${extraSongIds.join(', ')}`);
     }
 
-    // Update positions in a transaction
+    // Update positions in a single efficient transaction
     await this.prisma.$transaction(async (tx) => {
-      // Update each song's position
-      for (let i = 0; i < songIds.length; i++) {
-        await tx.setlistSong.update({
+      // Use a single updateMany with raw SQL for better performance
+      // First, temporarily set all positions to a high number to avoid conflicts
+      const tempOffset = 10000;
+      await tx.setlistSong.updateMany({
+        where: { setlistId },
+        data: { position: { increment: tempOffset } },
+      });
+
+      // Now update each song to its correct position using batch updates
+      const updatePromises = songIds.map((songId, index) =>
+        tx.setlistSong.update({
           where: {
             setlistId_songId: {
               setlistId,
-              songId: songIds[i],
+              songId,
             },
           },
           data: {
-            position: i,
+            position: index,
           },
-        });
-      }
+        })
+      );
+
+      // Execute all updates in parallel within the transaction
+      await Promise.all(updatePromises);
 
       // Log the reorder activity
       await tx.setlistActivity.create({
@@ -655,13 +663,27 @@ export class SetlistService {
 
     this.logger.debug(`Successfully reordered songs in setlist ${setlistId}`);
 
-    // Invalidate cache
-    const cacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
-    await this.cacheService.delete(cacheKey);
-    this.logger.debug(`Invalidated setlists cache for customer ${customerId} after reordering`);
+    // Targeted cache invalidation - only invalidate what's necessary
+    const setlistCacheKey = this.cacheService.createKey(CachePrefix.SETLIST, setlistId);
+    const setlistsCacheKey = this.cacheService.createKey(CachePrefix.SETLISTS, customerId);
+    
+    await Promise.all([
+      this.cacheService.delete(setlistCacheKey),
+      this.cacheService.delete(setlistsCacheKey),
+    ]);
+    
+    this.logger.debug(`Invalidated targeted caches for setlist ${setlistId} after reordering`);
 
-    // Return updated setlist
-    return this.findOne(setlistId, customerId);
+    // Return lightweight response with updated version
+    const updatedVersion = (setlist.version || 0) + 1;
+    return {
+      id: setlistId,
+      success: true,
+      message: 'Songs reordered successfully',
+      songOrder: songIds,
+      version: updatedVersion,
+      timestamp: new Date().toISOString(),
+    } as any;
   }
 
   async remove(id: string, customerId: string): Promise<SetlistResponseDto> {
@@ -1100,14 +1122,19 @@ export class SetlistService {
       throw new ForbiddenException('Only the setlist owner can update settings');
     }
 
-    // Generate share code if enabling sharing and doesn't exist
+    // Handle sharing logic
     let updateData: any = { ...settingsDto };
 
     if (settingsDto.isPublic === true || settingsDto.allowEditing === true) {
+      // Enable sharing - generate share code if doesn't exist
       if (!setlist.shareCode) {
         updateData.shareCode = this.generateShareCode();
-        updateData.isShared = true;
       }
+      updateData.isShared = true;
+    } else if (settingsDto.isPublic === false && settingsDto.allowEditing === false) {
+      // Disable sharing when both public and editing are false
+      updateData.isShared = false;
+      // Keep shareCode for potential re-enabling, but mark as not shared
     }
 
     // Update setlist settings

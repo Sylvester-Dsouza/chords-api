@@ -205,6 +205,9 @@ model Subscription {
   plan        SubscriptionPlan  @relation(fields: [planId], references: [id])
   transactions Transaction[]
 
+  // Performance indexes for foreign keys
+  @@index([customerId])
+  @@index([planId])
   @@map("Subscription")
 }
 
@@ -229,6 +232,10 @@ model Transaction {
   customer     Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
   plan         SubscriptionPlan  @relation(fields: [planId], references: [id])
 
+  // Performance indexes for foreign keys
+  @@index([subscriptionId])
+  @@index([customerId])
+  @@index([planId])
   @@map("Transaction")
 }
 
@@ -388,6 +395,8 @@ model SongTag {
   tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([songId, tagId])
+  @@index([tagId]) // Index for foreign key performance
+  @@index([songId]) // Index for reverse lookups
   @@map("SongTag")
 }
 
@@ -402,6 +411,8 @@ model ArtistTag {
   tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([artistId, tagId])
+  @@index([tagId]) // Index for foreign key performance
+  @@index([artistId]) // Index for reverse lookups
   @@map("ArtistTag")
 }
 
@@ -416,6 +427,8 @@ model CollectionTag {
   tag        Tag        @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([collectionId, tagId])
+  @@index([tagId]) // Index for foreign key performance
+  @@index([collectionId]) // Index for reverse lookups
   @@map("CollectionTag")
 }
 
@@ -431,6 +444,9 @@ model LikedSong {
   song     Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
 
   @@unique([customerId, songId])
+  // Performance indexes for foreign keys
+  @@index([songId])
+  @@index([customerId])
   @@map("LikedSong")
 }
 
@@ -446,6 +462,9 @@ model LikedCollection {
   collection  Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
 
   @@unique([customerId, collectionId])
+  // Performance indexes for foreign keys
+  @@index([collectionId])
+  @@index([customerId])
   @@map("LikedCollection")
 }
 
@@ -486,6 +505,7 @@ model BannerItem {
   // Relations
   homeSection   HomeSection @relation(fields: [homeSectionId], references: [id], onDelete: Cascade)
 
+  @@index([homeSectionId]) // Index for foreign key performance
   @@map("BannerItem")
 }
 
@@ -633,6 +653,7 @@ model SetlistCollaborator {
   @@unique([setlistId, customerId]) // One collaborator record per setlist per customer
   @@index([setlistId])
   @@index([customerId])
+  @@index([invitedBy]) // Performance index for foreign key
   @@index([status])
   @@map("SetlistCollaborator")
 }
@@ -697,6 +718,7 @@ model SetlistSnapshot {
 
   @@unique([setlistId, version])
   @@index([setlistId])
+  @@index([createdBy]) // Performance index for foreign key
   @@index([version])
   @@map("SetlistSnapshot")
 }
@@ -737,6 +759,8 @@ model SongRequest {
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   upvotedBy   SongRequestUpvote[]
 
+  // Performance indexes for foreign keys
+  @@index([customerId])
   @@map("SongRequest")
 }
 
@@ -752,6 +776,9 @@ model SongRequestUpvote {
   customer      Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@unique([songRequestId, customerId])
+  // Performance indexes for foreign keys
+  @@index([customerId])
+  @@index([songRequestId])
   @@map("SongRequestUpvote")
 }
 
@@ -772,6 +799,8 @@ model FeatureRequest {
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   upvotedBy   FeatureRequestUpvote[]
 
+  // Performance indexes for foreign keys
+  @@index([customerId])
   @@map("FeatureRequest")
 }
 
@@ -787,6 +816,9 @@ model FeatureRequestUpvote {
   customer         Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@unique([featureRequestId, customerId])
+  // Performance indexes for foreign keys
+  @@index([customerId])
+  @@index([featureRequestId])
   @@map("FeatureRequestUpvote")
 }
 
@@ -809,6 +841,8 @@ model RefreshToken {
   // Relations
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
+  // Performance indexes for foreign keys
+  @@index([customerId])
   @@index([deviceId])
   @@map("RefreshToken")
 }
@@ -828,6 +862,8 @@ model DeviceToken {
   // Relations
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
+  // Performance indexes for foreign keys
+  @@index([customerId])
   @@map("DeviceToken")
 }
 
@@ -850,6 +886,8 @@ model Notification {
   customer    Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   history     NotificationHistory[]
 
+  // Performance indexes for foreign keys
+  @@index([customerId])
   @@map("Notification")
 }
 
@@ -870,6 +908,9 @@ model NotificationHistory {
   customer       Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@unique([notificationId, customerId])
+  // Performance indexes for foreign keys
+  @@index([customerId])
+  @@index([notificationId])
   @@map("NotificationHistory")
 }
 
@@ -1212,6 +1253,7 @@ model Lesson {
   lessonProgress  LessonProgress[]
 
   @@index([courseId])
+  @@index([practiceSongId]) // Performance index for foreign key
   @@index([dayNumber])
   @@map("Lesson")
 }

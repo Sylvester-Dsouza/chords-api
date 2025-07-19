@@ -25,6 +25,8 @@ import { RolesGuard } from '../../guards/roles.guard';
 import { Roles } from '../../decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
 import { Request } from 'express';
+import { PrismaService } from '../../services/prisma.service';
+import { admin, isFirebaseInitialized } from '../../config/firebase.config';
 
 interface RequestWithUser extends Request {
   user: {
@@ -37,7 +39,10 @@ interface RequestWithUser extends Request {
 @ApiTags('song-requests')
 @Controller('song-requests')
 export class SongRequestController {
-  constructor(private readonly songRequestService: SongRequestService) {}
+  constructor(
+    private readonly songRequestService: SongRequestService,
+    private readonly prismaService: PrismaService,
+  ) {}
 
   @Post()
   @UseGuards(CustomerAuthGuard)
@@ -61,8 +66,26 @@ export class SongRequestController {
     @Req() req: RequestWithUser,
     @Query('status') status?: string,
   ): Promise<SongRequestResponseDto[]> {
-    // Pass the current customer ID to check upvote status
-    const customerId = req.user?.id;
+    // Manually check for authentication to get upvote status
+    let customerId: string | undefined;
+    
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        
+        if (token) {
+          // Try to get customer from token without throwing errors
+          const customer = await this.getCustomerFromToken(token);
+          customerId = customer?.id;
+        }
+      }
+    } catch (error) {
+      // Ignore auth errors - just don't set customerId
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.log('Optional auth failed, continuing without upvote status:', errorMessage);
+    }
+    
     return this.songRequestService.findAll(status, customerId);
   }
 
@@ -146,5 +169,57 @@ export class SongRequestController {
     @Req() req: RequestWithUser,
   ): Promise<void> {
     return this.songRequestService.removeUpvote(id, req.user.id);
+  }
+
+  /**
+   * Helper method to get customer from token without throwing errors
+   * Used for optional authentication in public endpoints
+   */
+  private async getCustomerFromToken(token: string): Promise<{ id: string; email: string; name: string } | null> {
+    try {
+      // Check if Firebase is available
+      if (!isFirebaseInitialized()) {
+        return null;
+      }
+
+      // First, check if this is a custom token (mock_access_token_*)
+      if (token.startsWith('mock_access_token_')) {
+        const customerId = token.replace('mock_access_token_', '');
+        const customer = await this.prismaService.customer.findUnique({
+          where: { id: customerId },
+          select: { id: true, email: true, name: true, isActive: true },
+        });
+
+        if (!customer || !customer.isActive) {
+          return null;
+        }
+
+        return {
+          id: customer.id,
+          email: customer.email,
+          name: customer.name,
+        };
+      } else {
+        // Try to verify as Firebase token
+        const decodedFirebaseToken = await admin.auth().verifyIdToken(token);
+        const customer = await this.prismaService.customer.findUnique({
+          where: { firebaseUid: decodedFirebaseToken.uid },
+          select: { id: true, email: true, name: true, isActive: true },
+        });
+
+        if (!customer || !customer.isActive) {
+          return null;
+        }
+
+        return {
+          id: customer.id,
+          email: customer.email,
+          name: customer.name,
+        };
+      }
+    } catch (error) {
+      // Return null for any authentication errors
+      return null;
+    }
   }
 }

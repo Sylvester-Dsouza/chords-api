@@ -42,13 +42,13 @@ export class SongRequestService {
       throw new BadRequestException(`Customer with ID ${customerId} not found`);
     }
 
-    // Create the song request
-    const songRequest = await this.prisma.songRequest.create({
+    // Create the song request with 1 upvote from creator
+    const createdSongRequest = await this.prisma.songRequest.create({
       data: {
         ...createSongRequestDto,
         customerId,
         status: SongRequestStatus.PENDING,
-        upvotes: 0,
+        upvotes: 1, // Start with 1 upvote from creator
       },
       include: {
         customer: {
@@ -61,8 +61,16 @@ export class SongRequestService {
       },
     });
 
-    // Convert null values to undefined for DTO compatibility
-    return this.mapSongRequestToDto(songRequest);
+    // Create the auto-upvote from the creator
+    await this.prisma.songRequestUpvote.create({
+      data: {
+        songRequestId: createdSongRequest.id,
+        customerId,
+      },
+    });
+
+    // Convert null values to undefined for DTO compatibility and set hasUpvoted to true for creator
+    return this.mapSongRequestToDto(createdSongRequest, true);
   }
 
   async findAll(status?: string, currentCustomerId?: string): Promise<SongRequestResponseDto[]> {
@@ -293,6 +301,16 @@ export class SongRequestService {
 
     if (!existingUpvote) {
       throw new NotFoundException('You have not upvoted this song request');
+    }
+
+    // Check if the user is the creator of the song request
+    const songRequest = await this.prisma.songRequest.findUnique({
+      where: { id: songRequestId },
+      select: { customerId: true },
+    });
+
+    if (songRequest && songRequest.customerId === customerId) {
+      throw new BadRequestException('You cannot remove your upvote from your own song request');
     }
 
     // Remove the upvote in a transaction

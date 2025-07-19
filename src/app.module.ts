@@ -65,6 +65,8 @@ import { CommentService } from './services/comment.service';
 import { SongRatingService } from './services/song-rating.service';
 import { HomeSectionService } from './services/home-section.service';
 import { BannerItemService } from './services/banner-item.service';
+import { TimezoneService } from './services/timezone.service';
+import { TimezoneController } from './controllers/timezone.controller';
 
 @Module({
   imports: [
@@ -117,7 +119,8 @@ import { BannerItemService } from './services/banner-item.service';
   controllers: [
     AppController,
     UserController,
-    CustomerController
+    CustomerController,
+    TimezoneController
   ],
   providers: [
     AppService,
@@ -144,6 +147,7 @@ import { BannerItemService } from './services/banner-item.service';
     SongRatingService,
     HomeSectionService,
     BannerItemService,
+    TimezoneService,
     // Database Safety Services
     DatabaseProtectionService,
     {

@@ -44,14 +44,14 @@ export class FeatureRequestService {
       throw new BadRequestException(`Customer with ID ${customerId} not found`);
     }
 
-    // Create the feature request
-    const featureRequest = await this.prisma.featureRequest.create({
+    // Create the feature request with 1 upvote from creator
+    const createdFeatureRequest = await this.prisma.featureRequest.create({
       data: {
         ...createFeatureRequestDto,
         customerId,
         status: FeatureRequestStatus.PENDING,
         priority: FeatureRequestPriority.MEDIUM,
-        upvotes: 0,
+        upvotes: 1, // Start with 1 upvote from creator
       },
       include: {
         customer: {
@@ -64,7 +64,16 @@ export class FeatureRequestService {
       },
     });
 
-    return this.mapFeatureRequestToDto(featureRequest);
+    // Create the auto-upvote from the creator
+    await this.prisma.featureRequestUpvote.create({
+      data: {
+        featureRequestId: createdFeatureRequest.id,
+        customerId,
+      },
+    });
+
+    // Convert null values to undefined for DTO compatibility and set hasUpvoted to true for creator
+    return this.mapFeatureRequestToDto(createdFeatureRequest, true);
   }
 
   async findAll(status?: string, currentCustomerId?: string): Promise<FeatureRequestResponseDto[]> {
@@ -267,6 +276,16 @@ export class FeatureRequestService {
 
     if (!existingUpvote) {
       throw new NotFoundException('Upvote not found');
+    }
+
+    // Check if the user is the creator of the feature request
+    const featureRequest = await this.prisma.featureRequest.findUnique({
+      where: { id: featureRequestId },
+      select: { customerId: true },
+    });
+
+    if (featureRequest && featureRequest.customerId === customerId) {
+      throw new BadRequestException('You cannot remove your upvote from your own feature request');
     }
 
     // Remove the upvote and decrement the upvote count
