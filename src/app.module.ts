@@ -54,6 +54,7 @@ import { DatabaseSafetyMiddleware } from './middleware/database-safety.middlewar
 import { ProductionSafetyGuard } from './guards/production-safety.guard';
 import { DatabaseProtectionService } from './services/database-protection.service';
 import { KaraokeModule } from './modules/karaoke.module';
+import { AccountDeletionModule } from './modules/account-deletion.module';
 import { HealthController } from './controllers/health/health.controller';
 
 import { SetlistService } from './services/setlist.service';
@@ -114,6 +115,7 @@ import { TimezoneController } from './controllers/timezone.controller';
     CommunityModule,
     CacheModule,
     KaraokeModule,
+    AccountDeletionModule,
     HealthModule
   ],
   controllers: [

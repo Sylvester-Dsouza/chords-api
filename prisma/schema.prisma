@@ -80,6 +80,7 @@ model Customer {
   commentLikes       CommentLike[]
   courseEnrollments  CourseEnrollment[]
   lessonProgress     LessonProgress[]
+  accountDeletionRequests AccountDeletionRequest[] // Account deletion requests
 
   // Collaborative setlist relations
   setlistCollaborations SetlistCollaborator[] // Setlists this customer collaborates on
@@ -1403,4 +1404,31 @@ model VocalItem {
   @@index([displayOrder])
   @@index([isActive])
   @@map("VocalItem")
+}
+// Account deletion requests
+model AccountDeletionRequest {
+  id          String   @id @default(uuid())
+  customerId  String   @map("customerId")
+  reason      String?  @db.Text
+  status      AccountDeletionStatus @default(PENDING)
+  requestedAt DateTime @default(now()) @map("requestedAt")
+  processedAt DateTime? @map("processedAt")
+  processedBy String?   @map("processedBy") // User ID who processed the request
+  notes       String?   @db.Text // Admin notes about the deletion request
+
+  // Relations
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([status])
+  @@index([requestedAt])
+  @@map("AccountDeletionRequest")
+}
+
+// Enum for account deletion request status
+enum AccountDeletionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
 }
