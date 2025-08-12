@@ -1,0 +1,17 @@
+{
+  "name": "api-ping-service",
+  "version": "1.0.0",
+  "description": "Keep your Render API alive by pinging it regularly",
+  "main": "ping-service-advanced.js",
+  "scripts": {
+    "start": "node ping-service-advanced.js",
+    "dev": "node ping-service.js",
+    "test": "node -e \"console.log('Testing ping service...'); require('./ping-service-advanced.js');\""
+  },
+  "keywords": ["render", "ping", "keepalive", "api"],
+  "author": "Your Name",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

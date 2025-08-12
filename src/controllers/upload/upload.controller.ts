@@ -47,14 +47,14 @@ export class UploadController {
     this.logger.log(`Uploading file to folder: ${folder}`);
 
     // Validate folder
-    const allowedFolders = ['song-cover', 'artist-cover', 'collection-cover', 'banner-image', 'vocals', 'karaoke'];
+    const allowedFolders = ['song-cover', 'artist-cover', 'collection-cover', 'banner-image', 'vocals', 'multi-track'];
     if (!allowedFolders.includes(folder)) {
       throw new BadRequestException(`Invalid folder. Must be one of: ${allowedFolders.join(', ')}`);
     }
 
     // Validate file type based on folder
-    if (folder === 'vocals' || folder === 'karaoke') {
-      // Audio files for vocals and karaoke folders
+    if (folder === 'vocals' || folder === 'multi-track') {
+      // Audio files for vocals and multi-track folders
       const allowedAudioTypes = [
         'audio/mpeg',
         'audio/mp3',
@@ -77,7 +77,7 @@ export class UploadController {
 
     // Validate file size based on folder
     let maxSize: number;
-    if (folder === 'vocals' || folder === 'karaoke') {
+    if (folder === 'vocals' || folder === 'multi-track') {
       maxSize = 50 * 1024 * 1024; // 50MB for audio files
     } else {
       maxSize = 5 * 1024 * 1024; // 5MB for image files

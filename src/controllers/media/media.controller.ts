@@ -200,7 +200,7 @@ export class MediaController {
   })
   async getStorageBuckets(): Promise<string[]> {
     // Return the list of buckets used in your application
-    return ['media', 'karaoke', 'vocal-models'];
+    return ['media', 'multi-track', 'vocal-models'];
   }
 
   @Get('file-types')

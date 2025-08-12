@@ -3,9 +3,10 @@ import { VocalController } from '../controllers/vocal/vocal.controller';
 import { VocalService } from '../services/vocal.service';
 import { PrismaService } from '../services/prisma.service';
 import { CacheModule } from './cache.module';
+import { UploadModule } from './upload.module';
 
 @Module({
-  imports: [CacheModule],
+  imports: [CacheModule, UploadModule],
   controllers: [VocalController],
   providers: [VocalService, PrismaService],
   exports: [VocalService],

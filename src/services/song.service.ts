@@ -4,8 +4,22 @@ import { CacheService, CachePrefix, CacheTTL } from './cache.service';
 import { CreateSongDto, UpdateSongDto, SongResponseDto } from '../dto/song.dto';
 import { ArtistResponseDto } from '../dto/artist.dto';
 import { LanguageResponseDto } from '../dto/language.dto';
-import { KaraokeResponseDto } from '../dto/karaoke.dto';
-import { Song } from '@prisma/client';
+import { MultiTrackResponseDto } from '../dto/multi-track.dto';
+import { Song, MultiTrack, Prisma } from '@prisma/client';
+
+// Define the Song with includes type
+type SongWithRelations = Prisma.SongGetPayload<{
+  include: {
+    artist: true;
+    language: true;
+    multiTrack: true;
+    songTags: {
+      include: {
+        tag: true;
+      };
+    };
+  };
+}>;
 import { parse as csvParse } from 'csv-parse';
 import { stringify as csvStringify } from 'csv-stringify';
 import { Readable } from 'stream';
@@ -179,7 +193,7 @@ export class SongService {
             include: {
               artist: true,
               language: true,
-              karaoke: true,
+              multiTrack: true,
             },
             orderBy: {
               title: 'asc',
@@ -255,7 +269,7 @@ export class SongService {
         include: {
           artist: true,
           language: true,
-          karaoke: true,
+          multiTrack: true,
         },
         orderBy: {
           title: 'asc',
@@ -281,7 +295,7 @@ export class SongService {
         include: {
           artist: true,
           language: true,
-          karaoke: true,
+          multiTrack: true,
         },
         orderBy: {
           updatedAt: 'desc', // Most recently updated first
@@ -449,7 +463,7 @@ export class SongService {
                   }
                 }
               },
-              karaoke: true, // Include karaoke relationship
+              multiTrack: true, // Include multi-track relationship
             },
             orderBy,
             skip,
@@ -507,48 +521,21 @@ export class SongService {
             dto.metaTitle = song.metaTitle;
             dto.metaDescription = song.metaDescription;
 
-            // Map karaoke data if available
-            if (song.karaoke) {
-              const karaokeDto = new KaraokeResponseDto();
-              karaokeDto.id = song.karaoke.id;
-              karaokeDto.songId = song.karaoke.songId;
-              karaokeDto.fileSize = song.karaoke.fileSize;
-              karaokeDto.duration = song.karaoke.duration;
-              karaokeDto.key = song.karaoke.key;
-              karaokeDto.uploadedBy = song.karaoke.uploadedBy;
-              karaokeDto.uploadedAt = song.karaoke.uploadedAt;
-              karaokeDto.updatedAt = song.karaoke.updatedAt;
-              karaokeDto.version = song.karaoke.version;
-              karaokeDto.status = song.karaoke.status;
-              karaokeDto.quality = song.karaoke.quality;
-              karaokeDto.notes = song.karaoke.notes;
+            // Map multi-track data if available
+            if (song.multiTrack) {
+              const multiTrackDto = new MultiTrackResponseDto();
+              multiTrackDto.id = song.multiTrack.id;
+              multiTrackDto.songId = song.multiTrack.songId;
+              multiTrackDto.vocalsUrl = song.multiTrack.vocalsUrl;
+              multiTrackDto.bassUrl = song.multiTrack.bassUrl;
+              multiTrackDto.drumsUrl = song.multiTrack.drumsUrl;
+              multiTrackDto.otherUrl = song.multiTrack.otherUrl;
+              multiTrackDto.uploadedAt = song.multiTrack.uploadedAt;
+              multiTrackDto.updatedAt = song.multiTrack.updatedAt;
 
-              // Map karaoke tracks if available
-              // Use type assertion to access tracks property
-              const tracks = (song.karaoke as any).tracks;
-              if (tracks && Array.isArray(tracks)) {
-                karaokeDto.tracks = tracks.map((track: any) => ({
-                  id: track.id,
-                  karaokeId: track.karaokeId,
-                  trackType: track.trackType,
-                  fileUrl: track.fileUrl,
-                  fileSize: track.fileSize,
-                  duration: track.duration,
-                  volume: track.volume,
-                  isMuted: track.isMuted,
-                  uploadedAt: track.uploadedAt,
-                  updatedAt: track.updatedAt,
-                  quality: track.quality,
-                  notes: track.notes,
-                  status: track.status,
-                }));
-              } else {
-                karaokeDto.tracks = [];
-              }
-
-              dto.karaoke = karaokeDto;
+              dto.multiTrack = multiTrackDto;
             } else {
-              dto.karaoke = null;
+              dto.multiTrack = null;
             }
 
             return dto;
@@ -653,12 +640,17 @@ export class SongService {
         include: {
           artist: true,
           language: true,
-          karaoke: true,
+          multiTrack: true,
+          songTags: {
+            include: {
+              tag: true,
+            },
+          },
         },
         orderBy,
         skip,
         take: limit,
-      });
+      }) as SongWithRelations[];
 
       const totalPages = Math.ceil(total / limit);
 
@@ -688,17 +680,13 @@ export class SongService {
       console.log(`🔥 [Backend] BYPASSING CACHE FOR SONG ${id} - FORCING FRESH DATA`);
       const song = await (async () => {
           this.logger.debug(`Cache miss for song ${id}, fetching from database`);
-          console.log(`🎤 [Backend] Fetching song with karaoke data for ID: ${id}`);
+          console.log(`🎤 [Backend] Fetching song with multi-track data for ID: ${id}`);
           const song = await this.prisma.song.findUnique({
             where: { id },
             include: {
               artist: true,
               language: true,
-              karaoke: {
-                include: {
-                  tracks: true,
-                },
-              },
+              multiTrack: true,
               songTags: {
                 include: {
                   tag: true,
@@ -709,10 +697,10 @@ export class SongService {
           console.log(`🎤 [Backend] Raw song data:`, {
             id: song?.id,
             title: song?.title,
-            hasKaraoke: !!song?.karaoke,
-            karaokeId: song?.karaoke?.id,
-            karaokeStatus: song?.karaoke?.status,
-            trackCount: song?.karaoke?.tracks?.length || 0
+            hasMultiTrack: !!song?.multiTrack,
+            multiTrackId: song?.multiTrack?.id,
+            multiTrackStatus: 'ACTIVE', // MultiTrack doesn't have status field in schema
+            trackCount: this.getActiveTrackCount(song?.multiTrack || null)
           });
 
           if (!song) {
@@ -736,35 +724,29 @@ export class SongService {
         include: {
           artist: true,
           language: true,
-          karaoke: {
-            include: {
-              tracks: true,
-            },
-          },
+          multiTrack: true,
           songTags: {
             include: {
               tag: true,
             },
           },
         },
-      });
+      }) as SongWithRelations | null;
 
       if (!song) {
         throw new NotFoundException(`Song with ID ${id} not found`);
       }
 
-      // Debug karaoke tracks
-      if (song.karaoke) {
-        // Check if tracks property exists before accessing it
-        const tracks = (song.karaoke as any).tracks;
-        console.log(`🎤 [Backend] Song ${id} has karaoke data with ${tracks?.length || 0} tracks`);
-        if (tracks && tracks.length > 0) {
-          tracks.forEach((track: any) => {
-            console.log(`🎤 [Backend] Track: ${track.trackType}, Status: ${track.status}, URL: ${track.fileUrl}`);
-          });
-        }
+      // Debug multi-track data
+      if (song.multiTrack) {
+        console.log(`🎤 [Backend] Song ${id} has multi-track data:`, {
+          vocalsUrl: !!song.multiTrack.vocalsUrl,
+          bassUrl: !!song.multiTrack.bassUrl,
+          drumsUrl: !!song.multiTrack.drumsUrl,
+          otherUrl: !!song.multiTrack.otherUrl,
+        });
       } else {
-        console.log(`🎤 [Backend] Song ${id} has no karaoke data`);
+        console.log(`🎤 [Backend] Song ${id} has no multi-track data`);
       }
 
       // Map to DTO
@@ -779,8 +761,8 @@ export class SongService {
     console.log(`\n🔥🔥🔥 [Backend] MAPPING SONG TO DTO 🔥🔥🔥`);
     console.log(`🎤 [Backend] Song ID: ${song.id}`);
     console.log(`🎤 [Backend] Song Title: ${song.title}`);
-    console.log(`🎤 [Backend] Has Karaoke: ${!!song.karaoke}`);
-    console.log(`🎤 [Backend] Karaoke Object:`, song.karaoke);
+    console.log(`🎤 [Backend] Has Multi-Track: ${!!song.multiTrack}`);
+    console.log(`🎤 [Backend] Multi-Track Object:`, song.multiTrack);
     console.log(`🔥🔥🔥 [Backend] END INITIAL DEBUG 🔥🔥🔥\n`);
     
     const dto = new SongResponseDto();
@@ -833,73 +815,42 @@ export class SongService {
     dto.metaTitle = song.metaTitle;
     dto.metaDescription = song.metaDescription;
 
-    // Map karaoke data if available
-    console.log(`🎤 [Backend] Mapping karaoke data for song ${song.id}:`, {
-      hasKaraoke: !!song.karaoke,
-      karaokeId: song.karaoke?.id,
-      status: song.karaoke?.status
+    // Map multi-track data if available
+    console.log(`🎤 [Backend] Mapping multi-track data for song ${song.id}:`, {
+      hasMultiTrack: !!song.multiTrack,
+      multiTrackId: song.multiTrack?.id,
+      hasVocals: !!song.multiTrack?.vocalsUrl,
+      hasBass: !!song.multiTrack?.bassUrl,
+      hasDrums: !!song.multiTrack?.drumsUrl,
+      hasOther: !!song.multiTrack?.otherUrl,
     });
     
-    if (song.karaoke) {
-      console.log(`🎤 [Backend] Creating karaoke DTO`);
-      const karaokeDto = new KaraokeResponseDto();
-      karaokeDto.id = song.karaoke.id;
-      karaokeDto.songId = song.karaoke.songId;
-      karaokeDto.fileSize = song.karaoke.fileSize;
-      karaokeDto.duration = song.karaoke.duration;
-      karaokeDto.key = song.karaoke.key;
-      karaokeDto.uploadedBy = song.karaoke.uploadedBy;
-      karaokeDto.uploadedAt = song.karaoke.uploadedAt;
-      karaokeDto.updatedAt = song.karaoke.updatedAt;
-      karaokeDto.version = song.karaoke.version;
-      karaokeDto.status = song.karaoke.status;
-      karaokeDto.quality = song.karaoke.quality;
-      karaokeDto.notes = song.karaoke.notes;
+    if (song.multiTrack) {
+      console.log(`🎤 [Backend] Creating multi-track DTO`);
+      const multiTrackDto = new MultiTrackResponseDto();
+      multiTrackDto.id = song.multiTrack.id;
+      multiTrackDto.songId = song.multiTrack.songId;
+      multiTrackDto.vocalsUrl = song.multiTrack.vocalsUrl;
+      multiTrackDto.bassUrl = song.multiTrack.bassUrl;
+      multiTrackDto.drumsUrl = song.multiTrack.drumsUrl;
+      multiTrackDto.otherUrl = song.multiTrack.otherUrl;
+      multiTrackDto.uploadedAt = song.multiTrack.uploadedAt;
+      multiTrackDto.updatedAt = song.multiTrack.updatedAt;
 
-      // Map karaoke tracks if available
-      // Use type assertion to access tracks property
-      const tracks = (song.karaoke as any).tracks;
-      console.log(`🎤 [Backend] Processing tracks:`, {
-        hasTracks: !!tracks,
-        isArray: Array.isArray(tracks),
-        trackCount: tracks?.length || 0,
-        trackTypes: tracks?.map((t: any) => t.trackType) || []
-      });
-      
-      if (tracks && Array.isArray(tracks)) {
-        karaokeDto.tracks = tracks.map((track: any) => ({
-          id: track.id,
-          karaokeId: track.karaokeId,
-          trackType: track.trackType,
-          fileUrl: track.fileUrl,
-          fileSize: track.fileSize,
-          duration: track.duration,
-          volume: track.volume,
-          isMuted: track.isMuted,
-          uploadedAt: track.uploadedAt,
-          updatedAt: track.updatedAt,
-          quality: track.quality,
-          notes: track.notes,
-          status: track.status,
-        }));
-        console.log(`🎤 [Backend] Mapped ${karaokeDto.tracks.length} tracks`);
-      } else {
-        karaokeDto.tracks = [];
-        console.log(`🎤 [Backend] No tracks found, setting empty array`);
-      }
-
-      dto.karaoke = karaokeDto;
-      console.log(`🎤 [Backend] Final karaoke DTO:`, {
-        id: karaokeDto.id,
-        status: karaokeDto.status,
-        trackCount: karaokeDto.tracks?.length || 0
+      dto.multiTrack = multiTrackDto;
+      console.log(`🎤 [Backend] Final multi-track DTO:`, {
+        id: multiTrackDto.id,
+        hasVocals: !!multiTrackDto.vocalsUrl,
+        hasBass: !!multiTrackDto.bassUrl,
+        hasDrums: !!multiTrackDto.drumsUrl,
+        hasOther: !!multiTrackDto.otherUrl,
       });
     } else {
-      dto.karaoke = null;
-      console.log(`🎤 [Backend] No karaoke data, setting null`);
+      dto.multiTrack = null;
+      console.log(`🎤 [Backend] No multi-track data, setting null`);
     }
 
-    console.log(`🎤 [Backend] Final song DTO has karaoke:`, !!dto.karaoke);
+    console.log(`🎤 [Backend] Final song DTO has multi-track:`, !!dto.multiTrack);
     return dto;
   }
 
@@ -1229,6 +1180,21 @@ export class SongService {
       tutorialVideoUrl: songData.tutorialVideoUrl || null,
       tags: songData.tags ? songData.tags.split(',').map((tag: any) => tag.trim()) : [],
     };
+  }
+
+  /**
+   * Get the count of active tracks in a MultiTrack record
+   */
+  private getActiveTrackCount(multiTrack: MultiTrack | null): number {
+    if (!multiTrack) return 0;
+    
+    let count = 0;
+    if (multiTrack.vocalsUrl) count++;
+    if (multiTrack.bassUrl) count++;
+    if (multiTrack.drumsUrl) count++;
+    if (multiTrack.otherUrl) count++;
+    
+    return count;
   }
 
   /**

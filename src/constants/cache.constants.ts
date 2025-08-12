@@ -31,4 +31,5 @@ export enum CachePrefix {
   BANNERS = 'banners',
   VOCAL_CATEGORIES = 'vocal_categories',
   VOCAL_ITEMS = 'vocal_items',
+  VOCAL_AUDIO_FILES = 'vocal_audio_files',
 }

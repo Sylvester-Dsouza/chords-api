@@ -37,7 +37,10 @@ export enum CachePrefix {
   CUSTOMER = 'customer:',
   AUTH = 'auth:',
   STATS = 'stats:',
-  KARAOKE = 'karaoke:',
+  MULTI_TRACK = 'multi_track:',
+  MULTI_TRACK_SONGS = 'multi_track_songs:',
+  MULTI_TRACK_STATS = 'multi_track_stats:',
+  MULTI_TRACK_DOWNLOAD = 'multi_track_download:',
 }
 
 @Injectable()

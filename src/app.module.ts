@@ -53,7 +53,7 @@ import { CacheModule } from './modules/cache.module';
 import { DatabaseSafetyMiddleware } from './middleware/database-safety.middleware';
 import { ProductionSafetyGuard } from './guards/production-safety.guard';
 import { DatabaseProtectionService } from './services/database-protection.service';
-import { KaraokeModule } from './modules/karaoke.module';
+import { MultiTrackModule } from './modules/multi-track.module';
 import { AccountDeletionModule } from './modules/account-deletion.module';
 import { HealthController } from './controllers/health/health.controller';
 
@@ -114,7 +114,7 @@ import { TimezoneController } from './controllers/timezone.controller';
     VocalModule,
     CommunityModule,
     CacheModule,
-    KaraokeModule,
+    MultiTrackModule,
     AccountDeletionModule,
     HealthModule
   ],

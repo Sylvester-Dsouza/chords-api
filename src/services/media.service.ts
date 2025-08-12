@@ -18,7 +18,7 @@ export interface MediaFile {
 }
 
 export interface MediaUsage {
-  type: 'song' | 'collection' | 'artist' | 'banner' | 'karaoke' | 'vocal_model';
+  type: 'song' | 'collection' | 'artist' | 'banner' | 'multi_track' | 'vocal_model';
   id: string;
   title: string;
   field: string; // e.g., 'imageUrl', 'coverImage', etc.
@@ -53,7 +53,7 @@ export class MediaService {
       console.log('🚀 Starting optimized media file discovery...');
 
       // Get all files from Supabase storage buckets in parallel
-      const buckets = ['media', 'karaoke', 'vocal-models'];
+      const buckets = ['media', 'multi-track', 'vocal-models'];
 
       // Process all buckets in parallel for better performance
       const bucketPromises = buckets.map(bucket => this.getAllFilesFromBucket(bucket));
@@ -176,7 +176,7 @@ export class MediaService {
       console.log(`🔍 Sample database URLs:`, sampleDbUrls.map(s => s.imageUrl));
 
       // Batch query all usage at once instead of one by one
-      const [songs, collections, artists, banners, karaokeFiles] = await Promise.all([
+      const [songs, collections, artists, banners, multiTrackFiles] = await Promise.all([
         this.prisma.song.findMany({
           where: {
             imageUrl: {
@@ -209,11 +209,25 @@ export class MediaService {
           },
           select: { id: true, title: true, imageUrl: true }
         }),
-        // Karaoke files no longer have a single fileUrl, they use individual track files
-        Promise.resolve([])
+        // Multi-track files - query the new simplified schema
+        this.prisma.multiTrack.findMany({
+          where: {
+            OR: [
+              { vocalsUrl: { in: urls.filter(url => url != null) } },
+              { bassUrl: { in: urls.filter(url => url != null) } },
+              { drumsUrl: { in: urls.filter(url => url != null) } },
+              { otherUrl: { in: urls.filter(url => url != null) } }
+            ]
+          },
+          include: {
+            song: {
+              select: { title: true }
+            }
+          }
+        })
       ]);
 
-      console.log(`📊 Database results: ${songs.length} songs, ${collections.length} collections, ${artists.length} artists, ${banners.length} banners, ${karaokeFiles.length} karaoke files`);
+      console.log(`📊 Database results: ${songs.length} songs, ${collections.length} collections, ${artists.length} artists, ${banners.length} banners, ${multiTrackFiles.length} multi-track files`);
 
       // Sample some database URLs for debugging
       if (songs.length > 0) {
@@ -275,18 +289,42 @@ export class MediaService {
         }
       });
 
-      // Process karaoke files - disabled since we moved to multi-track karaoke
-      // karaokeFiles.forEach(karaoke => {
-      //   if (karaoke.fileUrl) {
-      //     if (!usageMap.has(karaoke.fileUrl)) usageMap.set(karaoke.fileUrl, []);
-      //     usageMap.get(karaoke.fileUrl)!.push({
-      //       type: 'karaoke',
-      //       id: karaoke.id,
-      //       title: karaoke.song?.title || 'Unknown Song',
-      //       field: 'fileUrl'
-      //     });
-      //   }
-      // });
+      // Process multi-track files
+      multiTrackFiles.forEach(multiTrack => {
+        // Check each track URL
+        if (multiTrack.vocalsUrl && usageMap.has(multiTrack.vocalsUrl)) {
+          usageMap.get(multiTrack.vocalsUrl)!.push({
+            type: 'multi_track',
+            id: multiTrack.id,
+            title: multiTrack.song?.title || 'Unknown Song',
+            field: 'vocalsUrl'
+          });
+        }
+        if (multiTrack.bassUrl && usageMap.has(multiTrack.bassUrl)) {
+          usageMap.get(multiTrack.bassUrl)!.push({
+            type: 'multi_track',
+            id: multiTrack.id,
+            title: multiTrack.song?.title || 'Unknown Song',
+            field: 'bassUrl'
+          });
+        }
+        if (multiTrack.drumsUrl && usageMap.has(multiTrack.drumsUrl)) {
+          usageMap.get(multiTrack.drumsUrl)!.push({
+            type: 'multi_track',
+            id: multiTrack.id,
+            title: multiTrack.song?.title || 'Unknown Song',
+            field: 'drumsUrl'
+          });
+        }
+        if (multiTrack.otherUrl && usageMap.has(multiTrack.otherUrl)) {
+          usageMap.get(multiTrack.otherUrl)!.push({
+            type: 'multi_track',
+            id: multiTrack.id,
+            title: multiTrack.song?.title || 'Unknown Song',
+            field: 'otherUrl'
+          });
+        }
+      });
 
       console.log(`🗺️ Usage map created with ${usageMap.size} unique URLs`);
 
@@ -417,7 +455,7 @@ export class MediaService {
     const usage: MediaUsage[] = [];
 
     try {
-      const [songs, collections, artists, banners, karaokeFiles] = await Promise.all([
+      const [songs, collections, artists, banners, multiTrackFiles] = await Promise.all([
         this.prisma.song.findMany({
           where: { imageUrl: fileUrl },
           select: { id: true, title: true }
@@ -434,8 +472,22 @@ export class MediaService {
           where: { imageUrl: fileUrl },
           select: { id: true, title: true }
         }),
-        // Karaoke files no longer have a single fileUrl
-        Promise.resolve([])
+        // Multi-track files - check all track URLs
+        this.prisma.multiTrack.findMany({
+          where: {
+            OR: [
+              { vocalsUrl: fileUrl },
+              { bassUrl: fileUrl },
+              { drumsUrl: fileUrl },
+              { otherUrl: fileUrl }
+            ]
+          },
+          include: {
+            song: {
+              select: { title: true }
+            }
+          }
+        })
       ]);
 
       // Process results
@@ -443,7 +495,24 @@ export class MediaService {
       collections.forEach(collection => usage.push({ type: 'collection', id: collection.id, title: collection.name, field: 'imageUrl' }));
       artists.forEach(artist => usage.push({ type: 'artist', id: artist.id, title: artist.name, field: 'imageUrl' }));
       banners.forEach(banner => usage.push({ type: 'banner', id: banner.id, title: banner.title, field: 'imageUrl' }));
-      // karaokeFiles.forEach(karaoke => usage.push({ type: 'karaoke', id: karaoke.id, title: karaoke.song?.title || 'Unknown Song', field: 'fileUrl' }));
+
+      // Process multi-track files
+      multiTrackFiles.forEach(multiTrack => {
+        let field = '';
+        if (multiTrack.vocalsUrl === fileUrl) field = 'vocalsUrl';
+        else if (multiTrack.bassUrl === fileUrl) field = 'bassUrl';
+        else if (multiTrack.drumsUrl === fileUrl) field = 'drumsUrl';
+        else if (multiTrack.otherUrl === fileUrl) field = 'otherUrl';
+
+        if (field) {
+          usage.push({
+            type: 'multi_track',
+            id: multiTrack.id,
+            title: multiTrack.song?.title || 'Unknown Song',
+            field
+          });
+        }
+      });
 
     } catch (error) {
       console.error('Error finding file usage:', error);

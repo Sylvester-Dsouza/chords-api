@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsOptional, IsInt, IsArray, Min, Max, IsUUID, IsBoolean } from 'class-validator';
 import { ArtistResponseDto } from './artist.dto';
 import { LanguageResponseDto } from './language.dto';
-import { KaraokeResponseDto } from './karaoke.dto';
+import { MultiTrackResponseDto } from './multi-track.dto';
 
 export class CreateSongDto {
   @ApiProperty({ example: 'Oceans', description: 'Song title' })
@@ -234,9 +234,9 @@ export class SongResponseDto {
   @ApiProperty({ example: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', description: 'URL to a tutorial video showing how to play the song' })
   tutorialVideoUrl?: string | null = null;
 
-  // Karaoke relationship
-  @ApiProperty({ description: 'Karaoke track for this song', required: false })
-  karaoke?: KaraokeResponseDto | null = null;
+  // Multi-track relationship
+  @ApiProperty({ description: 'Multi-track audio for this song', required: false })
+  multiTrack?: MultiTrackResponseDto | null = null;
 
   @ApiProperty({ example: 0, description: 'Capo position' })
   capo: number = 0;
