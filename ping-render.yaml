@@ -1,0 +1,19 @@
+services:
+  # Ping service to keep the main API alive
+  - type: web
+    name: chords-api-ping
+    env: node
+    runtime: node
+    nodeVersion: 18.x
+    region: singapore
+    plan: free
+    buildCommand: echo "No build needed for ping service"
+    startCommand: node ping-service.js
+    envVars:
+      - key: API_URL
+        value: https://chords-api.onrender.com
+        # Replace with your actual API URL
+      - key: NODE_ENV
+        value: production
+    autoDeploy: false
+    # This service doesn't need a health check since it's just pinging

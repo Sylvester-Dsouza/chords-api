@@ -1,108 +1,134 @@
-# API Ping Service
+# 🏓 API Ping Service for Render Free Plan
 
-This service keeps your Render API alive by pinging it every 14 minutes to prevent it from spinning down on the free plan.
+This service keeps your Render API alive by pinging it every 13 minutes to prevent it from spinning down on the free plan (which happens after 15 minutes of inactivity).
 
-## Quick Start
+## 🚀 Quick Setup
 
-### Option 1: Run locally (simplest)
+### Option 1: Deploy as Separate Render Service (Recommended)
 
-1. Set your API URL:
+1. **Create a new Web Service on Render**
+   - Connect this same repository
+   - Service name: `chords-api-ping`
+   - Build command: `echo "No build needed"`
+   - Start command: `node ping-service.js`
+
+2. **Set Environment Variables**
+   ```
+   API_URL=https://your-main-api.onrender.com
+   NODE_ENV=production
+   ```
+
+3. **Deploy** - The ping service will start automatically
+
+### Option 2: Run Locally
+
 ```bash
-export API_URL="https://your-actual-render-app.onrender.com"
-```
+# Set your API URL
+export API_URL="https://your-render-app.onrender.com"
 
-2. Run the ping service:
-```bash
+# Run the ping service
 npm run ping
 ```
 
-### Option 2: Run with custom settings
+### Option 3: Use External Service
 
-```bash
-# Set environment variables
-export API_URL="https://your-actual-render-app.onrender.com"
-export PING_INTERVAL_MINUTES=14
-export RETRY_ATTEMPTS=3
+Deploy to Heroku, Railway, or any other platform that offers free tier.
 
-# Run advanced ping service
-node ping-service-advanced.js
-```
-
-### Option 3: Deploy as separate service on Render
-
-1. Create a new Web Service on Render
-2. Connect this repository
-3. Set build command: `npm install`
-4. Set start command: `node ping-service-advanced.js`
-5. Add environment variables:
-   - `API_URL`: Your main API URL
-   - `PING_INTERVAL_MINUTES`: 14 (default)
-
-## Environment Variables
+## ⚙️ Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `API_URL` | Required | Your Render app URL |
-| `PING_INTERVAL_MINUTES` | 14 | Minutes between pings |
-| `HEALTH_ENDPOINT` | `/health` | Health check endpoint |
-| `REQUEST_TIMEOUT` | 30 | Request timeout in seconds |
-| `RETRY_ATTEMPTS` | 3 | Number of retry attempts |
-| `RETRY_DELAY` | 5 | Delay between retries in seconds |
+| `API_URL` | **Required** | Your main Render API URL |
+| `NODE_ENV` | development | Environment (production recommended) |
 
-## Features
+## 🎯 How It Works
 
-- ✅ Configurable ping intervals
-- ✅ Retry logic with exponential backoff
-- ✅ Health endpoint monitoring
-- ✅ Detailed logging with timestamps
-- ✅ Graceful shutdown handling
-- ✅ Error handling and recovery
-- ✅ Response time monitoring
+- **Ping Interval**: 13 minutes (safer than 14)
+- **Target Endpoint**: `/health/ping` (lightweight endpoint)
+- **Retry Logic**: 3 attempts with 5-second delays
+- **Timeout**: 30 seconds per request
+- **Response Monitoring**: Logs response times and server uptime
 
-## Logs
+## 📊 Features
 
-The service provides detailed logs:
-- `ℹ️` Info messages
-- `✅` Success messages  
-- `⚠️` Warning messages
-- `❌` Error messages
+- ✅ **Smart Retry Logic**: Handles temporary network issues
+- ✅ **Response Time Monitoring**: Tracks API performance
+- ✅ **Server Uptime Display**: Shows how long your API has been running
+- ✅ **Error Recovery**: Continues running even after failures
+- ✅ **Graceful Shutdown**: Proper cleanup on termination
+- ✅ **Detailed Logging**: Comprehensive status information
 
-## Running in Production
+## 📝 Sample Logs
 
-For production use, consider:
+```
+🚀 Starting Enhanced API Ping Service for Render Free Plan
+=========================================================
+📍 Target URL: https://chords-api.onrender.com/health/ping
+⏰ Ping interval: 13 minutes
+🔄 Max retries: 3
+⏱️  Retry delay: 5 seconds
+🕐 Next ping: 1/15/2025, 2:30:00 PM
+=========================================================
 
-1. **Process Manager**: Use PM2 or similar
-```bash
-npm install -g pm2
-pm2 start ping-service-advanced.js --name "api-ping"
+[2025-01-15T14:17:00.123Z] 🏓 Pinging API: https://chords-api.onrender.com/health/ping
+[2025-01-15T14:17:00.456Z] ✅ API is alive! Status: 200, Response time: 333ms
+[2025-01-15T14:17:00.456Z] ℹ️  Server uptime: 1847s
+ℹ️  Next ping scheduled for: 1/15/2025, 2:30:00 PM
 ```
 
-2. **Docker**: Create a lightweight container
-3. **Cron Job**: Use system cron for simple scheduling
-4. **Separate Render Service**: Deploy as its own service
-
-## Troubleshooting
+## 🔧 Troubleshooting
 
 ### Common Issues
 
-1. **API_URL not set**: Make sure to set your actual Render app URL
-2. **Connection timeouts**: Check if your API is accessible
-3. **Too frequent pings**: Render might rate limit, adjust interval
-4. **Memory usage**: The simple version uses minimal memory
+1. **"API_URL not set" Error**
+   ```bash
+   # Make sure to set your actual Render app URL
+   export API_URL="https://your-app-name.onrender.com"
+   ```
 
-### Testing
+2. **Connection Failures**
+   - Check if your main API is running
+   - Verify the URL is correct
+   - Check Render service logs
 
-Test the ping service manually:
+3. **Ping Service Stops**
+   - Check Render logs for the ping service
+   - Ensure the ping service itself doesn't spin down
+   - Consider using a paid plan for the ping service
+
+### Testing Manually
+
 ```bash
-# Test single ping
-curl https://your-render-app.onrender.com/health
+# Test your health endpoint
+curl https://your-render-app.onrender.com/health/ping
 
-# Test with the ping service
+# Test with the ping service locally
 API_URL="https://your-render-app.onrender.com" node ping-service.js
 ```
 
-## Cost Considerations
+## 💡 Best Practices
 
-- Running locally: Free (uses your computer)
-- Separate Render service: Uses another free tier slot
-- Consider using a cheap VPS or serverless function for production
+1. **Use Separate Service**: Deploy ping service as its own Render service
+2. **Monitor Both Services**: Keep an eye on both main API and ping service logs
+3. **Set Correct URL**: Make sure API_URL points to your actual Render app
+4. **Consider Alternatives**: For production, consider paid plans or external monitoring
+
+## 🆓 Free Plan Strategy
+
+- **Main API**: Your actual application (spins down after 15 min)
+- **Ping Service**: Lightweight service that pings main API every 13 min
+- **Result**: Main API stays alive 24/7 on free plan
+
+## 📈 Monitoring
+
+Check your Render dashboard to see:
+- Main API uptime (should be 100% with ping service)
+- Ping service logs and health
+- Response times and performance
+
+## 🚨 Important Notes
+
+- The ping service itself needs to stay alive (consider using a different platform for it)
+- Render free plan has 750 hours/month limit across all services
+- Monitor your usage to avoid hitting limits
+- Consider upgrading to paid plan for production apps

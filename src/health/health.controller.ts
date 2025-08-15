@@ -76,12 +76,22 @@ export class HealthController {
 
   @Get('ping')
   @HealthCheck()
-  @ApiOperation({ summary: 'Simple ping endpoint' })
+  @ApiOperation({ summary: 'Simple ping endpoint for keep-alive services' })
   ping() {
+    const uptime = process.uptime();
+    const memoryUsage = process.memoryUsage();
+    
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
+      uptime: Math.floor(uptime),
+      uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`,
+      memory: {
+        used: Math.round(memoryUsage.heapUsed / 1024 / 1024), // MB
+        total: Math.round(memoryUsage.heapTotal / 1024 / 1024), // MB
+      },
+      environment: process.env.NODE_ENV || 'development',
+      nodeVersion: process.version,
     };
   }
 
